@@ -32,6 +32,7 @@ export interface WristworksConfig {
   ntp: NtpConfig
   targets: Target[]
   proxy?: ProxyConfig
+  currency?: CurrencyConfig
 }
 
 export interface CurrencyInfo {
@@ -120,9 +121,16 @@ export interface CalibrationResult {
   latencyMs: number
 }
 
+export interface ConversionPreset {
+  amount: number
+  from: string
+  to?: string
+}
+
 export interface CurrencyConfig {
   base: string
   cacheTtlSecs: number
+  conversions: ConversionPreset[]
 }
 
 export interface CurrencyRates {
@@ -134,6 +142,21 @@ export interface CurrencyRates {
 }
 
 export interface CurrencyConversion {
+  from: { currency: string; amount: number }
+  to: { currency: string; amount: number }
+  rate: number
+  timestamp: string
+  source: string
+  stale: boolean
+}
+
+export interface MultiConvertRequest {
+  amount: number
+  from: string
+  to: string
+}
+
+export interface MultiConvertResult {
   from: { currency: string; amount: number }
   to: { currency: string; amount: number }
   rate: number

@@ -1,7 +1,7 @@
 import { readFileSync, existsSync } from 'node:fs'
 import yaml from 'js-yaml'
 import 'dotenv/config'
-import type { WristworksConfig, Target, NtpConfig } from './types.js'
+import type { WristworksConfig, Target, NtpConfig, CurrencyConfig, ConversionPreset } from './types.js'
 
 function parseEnvTargets(raw: string): Target[] {
   return raw.split(',').filter(Boolean).map(entry => {
@@ -57,6 +57,22 @@ function loadFromYaml(path: string): WristworksConfig {
           autoDetectVpn: doc.proxy.auto_detect_vpn ?? true,
         }
       : undefined,
+    currency: doc.currency
+      ? parseCurrencyYaml(doc.currency)
+      : undefined,
+  }
+}
+
+function parseCurrencyYaml(raw: any): CurrencyConfig {
+  const conversions: ConversionPreset[] = (raw.conversions || []).map((c: any) => ({
+    amount: c.amount ?? 1,
+    from: c.from,
+    to: c.to,
+  }))
+  return {
+    base: raw.base || 'USD',
+    cacheTtlSecs: raw.cache_ttl_secs ?? 300,
+    conversions,
   }
 }
 
@@ -84,7 +100,28 @@ function loadFromEnv(): WristworksConfig {
           autoDetectVpn: process.env.WRISTWORKS_DETECT_VPN !== 'false',
         }
       : undefined,
+    currency: process.env.WRISTWORKS_CURRENCY_CONVERSIONS
+      ? parseCurrencyEnv(process.env.WRISTWORKS_CURRENCY_BASE, process.env.WRISTWORKS_CURRENCY_CONVERSIONS)
+      : undefined,
   }
+}
+
+function parseCurrencyEnv(base?: string, raw?: string): CurrencyConfig {
+  const defaultBase = base || 'USD'
+  const conversions: ConversionPreset[] = []
+  if (raw) {
+    for (const entry of raw.split(',').filter(Boolean)) {
+      const parts = entry.split('|')
+      if (parts.length >= 2) {
+        conversions.push({
+          amount: parseFloat(parts[0]) || 1,
+          from: parts[1],
+          to: parts[2] || undefined,
+        })
+      }
+    }
+  }
+  return { base: defaultBase, cacheTtlSecs: 300, conversions }
 }
 
 export function loadConfig(path?: string): WristworksConfig {

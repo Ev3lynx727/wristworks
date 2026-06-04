@@ -1,13 +1,15 @@
 export { loadConfig } from './config.js'
 export { calibrateNtp } from './ntp.js'
 export { fetchTimes } from './fetcher.js'
-export { fetchRates, convertCurrency, unifiedCurrency, enrichLocations, clearCurrencyCache } from './currency.js'
+export { fetchRates, convertCurrency, multiConvert, unifiedCurrency, enrichLocations, clearCurrencyCache } from './currency.js'
+export { cacheGet, cacheSet, cacheClear } from './cache.js'
 export type {
   WristworksConfig, Target, NtpConfig,
   TimeResult, Coordinates, CurrencyInfo,
   NtpServerResult, CalibrationBlock,
   Audit, WristworksOutput, ProxyInfo,
   CurrencyConfig, CurrencyRates, CurrencyConversion,
+  ConversionPreset, MultiConvertRequest, MultiConvertResult,
   UnifiedCurrencyOptions, UnifiedCurrencySnapshot,
 } from './types.js'
 
@@ -17,6 +19,7 @@ import { calibrateNtp } from './ntp.js'
 import { fetchTimes } from './fetcher.js'
 import { buildProxyOutput } from './proxy.js'
 import { enrichLocations } from './currency.js'
+import { cacheGet, cacheSet } from './cache.js'
 import type {
   CalibrationBlock, Audit, WristworksOutput, ProxyInfo,
 } from './types.js'
@@ -46,6 +49,14 @@ export class Wristworks {
   }
 
   async calibrate(): Promise<CalibrationBlock> {
+    const cacheKey = 'ntp:calibration'
+    const cached = cacheGet<{ block: CalibrationBlock; drift: number }>(cacheKey)
+    if (cached && cached.fresh) {
+      this.lastCalibration = cached.value.block
+      this.drift = cached.value.drift
+      return this.lastCalibration
+    }
+
     this.lastCalibration = await calibrateNtp(this.config.ntp)
     const synced = this.lastCalibration.servers.filter(s => s.status === 'synchronized')
     if (synced.length > 0) {
@@ -55,6 +66,8 @@ export class Wristworks {
         ? Math.round((median[mid - 1].driftMs + median[mid].driftMs) / 2)
         : median[mid].driftMs
     }
+
+    cacheSet(cacheKey, { block: this.lastCalibration, drift: this.drift }, this.config.ntp.syncIntervalSecs)
     return this.lastCalibration
   }
 

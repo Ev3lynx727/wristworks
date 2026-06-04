@@ -184,3 +184,19 @@ targets:
     city: Auckland
     confidence: high
     coordinates: { lat: -36.8485, lon: 174.7633 }
+
+currency:
+  base: IDR
+  cache_ttl_secs: 300
+  conversions:
+    - amount: 1
+      from: USD
+    - amount: 1
+      from: TWD
+    - amount: 1
+      from: JPY
+    - amount: 1
+      from: RUB
+    - amount: 100
+      from: JPY
+      to: USD
