@@ -1,0 +1,54 @@
+ntp:
+  server: pool.ntp.org
+  port: 123
+  sync_interval_secs: 300
+
+targets:
+  - name: Indonesia
+    timezone: Asia/Jakarta
+    label: WIB
+    enabled: true
+  - name: US East
+    timezone: America/New_York
+    label: EDT
+    enabled: true
+  - name: US Central
+    timezone: America/Chicago
+    label: CDT
+    enabled: true
+  - name: US West
+    timezone: America/Los_Angeles
+    label: PDT
+    enabled: true
+  - name: London
+    timezone: Europe/London
+    label: BST
+    enabled: true
+  - name: Moscow
+    timezone: Europe/Moscow
+    label: MSK
+    enabled: true
+  - name: China
+    timezone: Asia/Shanghai
+    label: CST
+    enabled: true
+  - name: Japan
+    timezone: Asia/Tokyo
+    label: JST
+    enabled: true
+  - name: Korea
+    timezone: Asia/Seoul
+    label: KST
+    enabled: true
+  - name: Taiwan
+    timezone: Asia/Taipei
+    label: CST
+    enabled: true
+  - name: Malaysia
+    timezone: Asia/Kuala_Lumpur
+    label: MYT
+    enabled: true
+  - name: Singapore
+    timezone: Asia/Singapore
+    label: SGT
+    enabled: true

@@ -1,0 +1,186 @@
+proxy:
+  enabled: true
+  proxies:
+    - socks5://208.102.51.6:58208
+    - http://198.54.132.88:3128
+  auto_detect_vpn: true
+
+ntp:
+  servers:
+    - pool.ntp.org
+    - time.google.com
+    - time.cloudflare.com
+  timeout_ms: 5000
+  sync_interval_secs: 300
+  polls: 5
+  poll_interval_ms: 200
+
+targets:
+  - name: Indonesia
+    timezone: Asia/Jakarta
+    label: WIB
+    enabled: true
+    countryCode: ID
+    city: Jakarta
+    confidence: high
+    coordinates: { lat: -6.2088, lon: 106.8456 }
+  - name: US East
+    timezone: America/New_York
+    label: EDT
+    enabled: true
+    countryCode: US
+    city: New York
+    confidence: high
+    coordinates: { lat: 40.7128, lon: -74.0060 }
+  - name: US Central
+    timezone: America/Chicago
+    label: CDT
+    enabled: true
+    countryCode: US
+    city: Chicago
+    confidence: high
+    coordinates: { lat: 41.8781, lon: -87.6298 }
+  - name: US West
+    timezone: America/Los_Angeles
+    label: PDT
+    enabled: true
+    countryCode: US
+    city: Los Angeles
+    confidence: high
+    coordinates: { lat: 34.0522, lon: -118.2437 }
+  - name: London
+    timezone: Europe/London
+    label: BST
+    enabled: true
+    countryCode: GB
+    city: London
+    confidence: high
+    coordinates: { lat: 51.5074, lon: -0.1278 }
+  - name: Moscow
+    timezone: Europe/Moscow
+    label: MSK
+    enabled: true
+    countryCode: RU
+    city: Moscow
+    confidence: high
+    coordinates: { lat: 55.7558, lon: 37.6173 }
+  - name: China
+    timezone: Asia/Shanghai
+    label: CST
+    enabled: true
+    countryCode: CN
+    city: Shanghai
+    confidence: high
+    coordinates: { lat: 31.2304, lon: 121.4737 }
+  - name: Japan
+    timezone: Asia/Tokyo
+    label: JST
+    enabled: true
+    countryCode: JP
+    city: Tokyo
+    confidence: high
+    coordinates: { lat: 35.6762, lon: 139.6503 }
+  - name: Korea
+    timezone: Asia/Seoul
+    label: KST
+    enabled: true
+    countryCode: KR
+    city: Seoul
+    confidence: high
+    coordinates: { lat: 37.5665, lon: 126.9780 }
+  - name: Taiwan
+    timezone: Asia/Taipei
+    label: CST
+    enabled: true
+    countryCode: TW
+    city: Taipei
+    confidence: high
+    coordinates: { lat: 25.0330, lon: 121.5654 }
+  - name: Malaysia
+    timezone: Asia/Kuala_Lumpur
+    label: MYT
+    enabled: true
+    countryCode: MY
+    city: Kuala Lumpur
+    confidence: high
+    coordinates: { lat: 3.1390, lon: 101.6869 }
+  - name: Singapore
+    timezone: Asia/Singapore
+    label: SGT
+    enabled: true
+    countryCode: SG
+    city: Singapore
+    confidence: high
+    coordinates: { lat: 1.3521, lon: 103.8198 }
+  - name: Hawaii
+    timezone: Pacific/Honolulu
+    label: HST
+    enabled: true
+    countryCode: US
+    city: Honolulu
+    confidence: high
+    coordinates: { lat: 21.3069, lon: -157.8583 }
+  - name: New York
+    timezone: America/New_York
+    label: EDT
+    enabled: true
+    countryCode: US
+    city: New York
+    confidence: high
+    coordinates: { lat: 40.7128, lon: -74.0060 }
+  - name: Istanbul
+    timezone: Europe/Istanbul
+    label: TRT
+    enabled: true
+    countryCode: TR
+    city: Istanbul
+    confidence: high
+    coordinates: { lat: 41.0082, lon: 28.9784 }
+  - name: Mecca
+    timezone: Asia/Riyadh
+    label: AST
+    enabled: true
+    countryCode: SA
+    city: Mecca
+    confidence: high
+    coordinates: { lat: 21.3891, lon: 39.8579 }
+  - name: St-Petersburg
+    timezone: Europe/Moscow
+    label: MSK
+    enabled: true
+    countryCode: RU
+    city: Saint Petersburg
+    confidence: high
+    coordinates: { lat: 59.9343, lon: 30.3351 }
+  - name: Beijing
+    timezone: Asia/Shanghai
+    label: CST
+    enabled: true
+    countryCode: CN
+    city: Beijing
+    confidence: high
+    coordinates: { lat: 39.9042, lon: 116.4074 }
+  - name: Papua New Guinea
+    timezone: Pacific/Port_Moresby
+    label: PGT
+    enabled: true
+    countryCode: PG
+    city: Port Moresby
+    confidence: high
+    coordinates: { lat: -9.4780, lon: 147.1491 }
+  - name: Australia
+    timezone: Australia/Sydney
+    label: AEST
+    enabled: true
+    countryCode: AU
+    city: Sydney
+    confidence: high
+    coordinates: { lat: -33.8688, lon: 151.2093 }
+  - name: New Zealand
+    timezone: Pacific/Auckland
+    label: NZST
+    enabled: true
+    countryCode: NZ
+    city: Auckland
+    confidence: high
+    coordinates: { lat: -36.8485, lon: 174.7633 }
