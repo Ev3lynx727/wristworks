@@ -38,12 +38,20 @@ export interface ServerTarget {
   asn?: string
 }
 
+export interface AgentConfig {
+  enabled: boolean
+  model: string
+  ollamaUrl: string
+  maxSteps: number
+}
+
 export interface WristworksConfig {
   ntp: NtpConfig
   targets: Target[]
   proxy?: ProxyConfig
   currency?: CurrencyConfig
   servers?: ServerTarget[]
+  agent?: AgentConfig
 }
 
 export interface CurrencyInfo {

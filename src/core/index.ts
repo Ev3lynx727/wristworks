@@ -5,6 +5,7 @@ export { calibrateNtp } from './ntp.js'
 export { fetchTimes } from './fetcher.js'
 export { fetchRates, convertCurrency, multiConvert, unifiedCurrency, enrichLocations, clearCurrencyCache } from './currency.js'
 export { cacheGet, cacheSet, cacheClear } from './cache.js'
+export { ask } from './agent.js'
 export type {
   WristworksConfig, Target, NtpConfig,
   TimeResult, Coordinates, CurrencyInfo,
@@ -13,6 +14,7 @@ export type {
   CurrencyConfig, CurrencyRates, CurrencyConversion,
   ConversionPreset, MultiConvertRequest, MultiConvertResult,
   UnifiedCurrencyOptions, UnifiedCurrencySnapshot,
+  AgentConfig,
 } from './types.js'
 
 import { readFileSync } from 'node:fs'

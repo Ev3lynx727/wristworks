@@ -25,7 +25,7 @@
     "ci": "npm run typecheck && npm run lint && npm run build",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src/",
-    "test": "echo 'No tests configured on main branch. Use feat/wristworks-ai-dev for agent tests.'",
+    "test": "npx tsx suite-test.js",
     "prepublishOnly": "npm run build"
   },
   "dependencies": {

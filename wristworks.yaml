@@ -225,6 +225,12 @@ targets:
     confidence: high
     coordinates: { lat: 10.8231, lon: 106.6297 }
 
+agent:
+  enabled: true
+  model: qwen2.5:3b
+  ollama_url: http://localhost:11434
+  max_steps: 8
+
 currency:
   base: IDR
   cache_ttl_secs: 300

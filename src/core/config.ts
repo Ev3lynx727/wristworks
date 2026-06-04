@@ -44,6 +44,12 @@ interface YamlDoc {
     provider?: string
     asn?: string
   }[]
+  agent?: {
+    enabled?: boolean
+    model?: string
+    ollama_url?: string
+    max_steps?: number
+  }
 }
 
 function parseEnvTargets(raw: string): Target[] {
@@ -113,6 +119,14 @@ function loadFromYaml(path: string): WristworksConfig {
           provider: s.provider,
           asn: s.asn,
         }))
+      : undefined,
+    agent: doc.agent
+      ? {
+          enabled: doc.agent.enabled ?? true,
+          model: doc.agent.model || 'qwen2.5:3b',
+          ollamaUrl: doc.agent.ollama_url || 'http://localhost:11434',
+          maxSteps: doc.agent.max_steps ?? 8,
+        }
       : undefined,
   }
 }

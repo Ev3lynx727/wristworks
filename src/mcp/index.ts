@@ -76,9 +76,15 @@ export async function createMcpServer(ww?: Wristworks): Promise<McpServer> {
     {
       prompt: z.string().min(1).describe("Natural language question or request (e.g. 'what time is it in Tokyo and Jakarta?', 'convert 500 USD to IDR', 'best posting time for USA from Indonesia')"),
     },
-    async ({ prompt: _prompt }): Promise<{ content: { type: "text"; text: string }[] }> => {
-      const msg = 'ask tool requires the feat/wristworks-ai-dev branch (git checkout feat/wristworks-ai-dev)'
-      return { content: [{ type: "text", text: JSON.stringify({ error: msg }, null, 2) }] }
+    async ({ prompt }): Promise<{ content: { type: "text"; text: string }[] }> => {
+      try {
+        const { ask } = await import("../core/agent.js")
+        const result = await ask(prompt)
+        return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] }
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err)
+        return { content: [{ type: "text", text: JSON.stringify({ error: msg }, null, 2) }] }
+      }
     },
   )
 

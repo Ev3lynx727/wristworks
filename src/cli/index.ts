@@ -324,16 +324,44 @@ async function cmdAsk(args: string[]): Promise<void> {
     } else {
       console.log(BOLD + 'ww ask' + RESET + '  \u2014  ' + DIM + 'AI-powered timezone assistant' + RESET)
       console.log()
-      console.log(DIM + '  Usage: ww ask <your question> (requires feat/wristworks-ai-dev branch)' + RESET)
+      console.log(DIM + '  Usage: ww ask <your question>' + RESET)
+      console.log('  Example: ww ask "what is the best time to post for USA audience from Indonesia?"')
     }
     return
   }
 
-  const msg = 'ww ask requires the feat/wristworks-ai-dev branch (git checkout feat/wristworks-ai-dev)'
   if (jsonMode) {
-    console.log(JSON.stringify({ command: 'ask', status: 'unavailable', prompt, message: msg }, null, 2))
-  } else {
-    console.log(DIM + msg + RESET)
+    try {
+      const { ask } = await import('../core/agent.js')
+      const result = await ask(prompt)
+      console.log(JSON.stringify({ command: 'ask', status: 'ok', prompt, ...result }, null, 2))
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      console.log(JSON.stringify({ command: 'ask', status: 'error', prompt, error: msg }, null, 2))
+    }
+    return
+  }
+
+  console.log(BOLD + 'ww ask' + RESET + DIM + '  \u2014  ' + prompt + RESET)
+  console.log()
+
+  try {
+    const { ask } = await import('../core/agent.js')
+    const result = await ask(prompt)
+    const r = result as { answer: string; steps: { tool: string }[]; model?: string }
+    console.log(r.answer)
+    if (r.steps.length > 0) {
+      console.log()
+      console.log(DIM + '\u2500'.repeat(40) + RESET)
+      console.log(DIM + '  \u2139\uFE0F  Model: ' + (r.model || 'unknown') + RESET)
+      console.log(DIM + '  Tools used:' + RESET)
+      for (const s of r.steps) {
+        console.log(DIM + '  \u2022 ' + s.tool + RESET)
+      }
+    }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    console.log(DIM + '  \u274C  Error: ' + msg + RESET)
   }
 }
 
