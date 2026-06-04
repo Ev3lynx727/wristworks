@@ -17,7 +17,7 @@ export const COUNTRY_CURRENCY: Record<string, string> = {
   YE: 'YER', PS: 'ILS', AZ: 'AZN', GE: 'GEL', AM: 'AMD', AL: 'ALL',
   MK: 'MKD', RS: 'RSD', ME: 'EUR', BA: 'BAM', MD: 'MDL', BY: 'BYN',
   IS: 'ISK', FO: 'DKK', GI: 'GIP', MC: 'EUR', LI: 'CHF', AD: 'EUR',
-  SM: 'EUR', VA: 'EUR', MC: 'EUR',
+  SM: 'EUR', VA: 'EUR',
 }
 
 export function currencyForCountry(countryCode: string): string | undefined {

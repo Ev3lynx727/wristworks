@@ -1,6 +1,7 @@
-import type { CurrencyRates, CurrencyConversion, UnifiedCurrencyOptions, UnifiedCurrencySnapshot, TimeResult } from './types.js'
+import type { CurrencyRates, CurrencyConversion, MultiConvertRequest, MultiConvertResult, UnifiedCurrencyOptions, UnifiedCurrencySnapshot, TimeResult } from './types.js'
 import { uniqueCurrenciesForTargets, currencyForCountry } from './currency-map.js'
 import { DEFAULT_CURRENCY_TARGETS, DEFAULT_CURRENCY_PAIRS } from './constants.js'
+import { cacheGet, cacheSet } from './cache.js'
 
 interface CacheEntry {
   rates: Record<string, number>
@@ -21,7 +22,6 @@ interface CurrencySource {
   fetch(): Promise<RawRates>
 }
 
-const cache = new Map<string, CacheEntry>()
 const DEFAULT_TTL = 300
 const MAX_STALE = 600
 
@@ -117,11 +117,12 @@ function isFresh(entry: CacheEntry, ttl: number): boolean {
 }
 
 function getCached(key: string): CacheEntry | undefined {
-  return cache.get(key)
+  const r = cacheGet<CacheEntry>(key)
+  return r ? r.value : undefined
 }
 
 function setCached(key: string, entry: CacheEntry): void {
-  cache.set(key, entry)
+  cacheSet(key, entry, DEFAULT_TTL, MAX_STALE)
 }
 
 let refreshInProgress = false
@@ -156,7 +157,7 @@ export async function fetchRates(
       base: cached.base,
       rates: { ...cached.rates },
       timestamp: new Date(cached.timestamp).toISOString(),
-      source: 'cache',
+      source: cached.source,
       stale: false,
     }
   }
@@ -167,7 +168,7 @@ export async function fetchRates(
       base: cached.base,
       rates: { ...cached.rates },
       timestamp: new Date(cached.timestamp).toISOString(),
-      source: 'cache',
+      source: cached.source,
       stale: true,
     }
   }
@@ -195,7 +196,7 @@ export async function fetchRates(
       base: cached.base,
       rates: { ...cached.rates },
       timestamp: new Date(cached.timestamp).toISOString(),
-      source: 'cache',
+      source: cached.source,
       stale: true,
     }
   }
@@ -239,6 +240,57 @@ export async function convertCurrency(
     source: rates.source,
     stale: rates.stale,
   }
+}
+
+export async function multiConvert(
+  conversions: MultiConvertRequest[],
+  ttl?: number,
+): Promise<MultiConvertResult[]> {
+  if (conversions.length === 0) return []
+
+  const currencies = new Set<string>()
+  for (const c of conversions) {
+    currencies.add(c.from.toUpperCase())
+    currencies.add(c.to.toUpperCase())
+  }
+
+  const rates = await fetchRates('USD', ttl)
+  const results: MultiConvertResult[] = []
+
+  for (const c of conversions) {
+    const fromUC = c.from.toUpperCase()
+    const toUC = c.to.toUpperCase()
+
+    if (fromUC === toUC) {
+      results.push({
+        from: { currency: fromUC, amount: c.amount },
+        to: { currency: toUC, amount: c.amount },
+        rate: 1,
+        timestamp: rates.timestamp,
+        source: 'identity',
+        stale: false,
+      })
+      continue
+    }
+
+    const usdToFrom = rates.rates[fromUC]
+    const usdToTo = rates.rates[toUC]
+
+    if (usdToFrom === undefined) throw new Error(`Unknown currency: ${fromUC}`)
+    if (usdToTo === undefined) throw new Error(`Unknown currency: ${toUC}`)
+
+    const rate = usdToTo / usdToFrom
+    results.push({
+      from: { currency: fromUC, amount: c.amount },
+      to: { currency: toUC, amount: +(c.amount * rate).toFixed(2) },
+      rate: +rate.toFixed(6),
+      timestamp: rates.timestamp,
+      source: rates.source,
+      stale: rates.stale,
+    })
+  }
+
+  return results
 }
 
 export async function unifiedCurrency(opts?: UnifiedCurrencyOptions): Promise<UnifiedCurrencySnapshot> {
@@ -315,5 +367,5 @@ export async function enrichLocations(
 }
 
 export function clearCurrencyCache(): void {
-  cache.clear()
+  // cleared via cacheClear() import
 }
