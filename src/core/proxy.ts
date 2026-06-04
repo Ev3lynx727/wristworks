@@ -6,7 +6,6 @@ const VPN_INTERFACES = ['tun0', 'tun1', 'tap0', 'tap1', 'ppp0', 'wg0', 'utun']
 
 function detectVpn(): VpnInfo {
   try {
-    const netDir = '/proc/net'
     const routes = readFileSync('/proc/net/route', 'utf-8')
     const lines = routes.trim().split('\n').slice(1)
     for (const line of lines) {

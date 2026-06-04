@@ -1,11 +1,12 @@
 #!/usr/bin/env node
-import { Wristworks, multiConvert } from './index.js'
-import type { MultiConvertRequest, WristworksConfig } from './types.js'
-import { formatCurrencyRate } from './constants.js'
-import { cacheGet } from './cache.js'
-import { loadConfig } from './config.js'
+import { Wristworks, multiConvert, lookupIpWithLocation, probeHttp } from '../core/index.js'
+import type { MultiConvertRequest, WristworksConfig } from '../core/types.js'
+import { formatCurrencyRate } from '../core/constants.js'
+import { cacheGet } from '../core/cache.js'
+import { loadConfig } from '../core/config.js'
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs'
 import { homedir } from 'node:os'
+import { resolve4 } from 'node:dns/promises'
 import { AsciiTable3 } from 'ascii-table3'
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
@@ -313,16 +314,204 @@ function printConvertResults(results: Awaited<ReturnType<typeof multiConvert>>, 
   console.log(table.toString())
 }
 
+async function cmdAsk(args: string[]): Promise<void> {
+  const jsonMode = args.includes('--json') || args.includes('-j')
+  const prompt = args.filter(a => !a.startsWith('-')).join(' ')
+
+  if (!prompt) {
+    if (jsonMode) {
+      console.log(JSON.stringify({ command: 'ask', status: 'no_prompt', message: 'Please provide a question.' }))
+    } else {
+      console.log(BOLD + 'ww ask' + RESET + '  \u2014  ' + DIM + 'AI-powered timezone assistant' + RESET)
+      console.log()
+      console.log(DIM + '  Usage: ww ask <your question> (requires feat/wristworks-ai-dev branch)' + RESET)
+    }
+    return
+  }
+
+  const msg = 'ww ask requires the feat/wristworks-ai-dev branch (git checkout feat/wristworks-ai-dev)'
+  if (jsonMode) {
+    console.log(JSON.stringify({ command: 'ask', status: 'unavailable', prompt, message: msg }, null, 2))
+  } else {
+    console.log(DIM + msg + RESET)
+  }
+}
+
+interface ServerCatchEntry {
+  name: string
+  host: string
+  ip: string
+  location: string
+  timezone: string
+  datetime: string
+  offset: string
+  dstActive: boolean
+  day: string
+  provider?: string
+  server?: string
+  statusCode?: number
+  up?: boolean
+  probeLatencyMs?: number
+}
+
+function tzTime(tz: string): { datetime: string; offset: string; dstActive: boolean; day: string } {
+  const now = new Date()
+  const fmt = new Intl.DateTimeFormat('en-CA', {
+    timeZone: tz,
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false,
+  })
+  const parts = fmt.formatToParts(now)
+  const get = (t: string) => parts.find(p => p.type === t)?.value || ''
+  const datetime = `${get('year')}-${get('month')}-${get('day')}T${get('hour')}:${get('minute')}:${get('second')}`
+
+  const offsetFmt = new Intl.DateTimeFormat('en-CA', { timeZone: tz, timeZoneName: 'shortOffset' })
+  const offsetRaw = offsetFmt.formatToParts(now).find(p => p.type === 'timeZoneName')?.value || ''
+  const offset = offsetRaw === 'GMT' ? 'GMT+0' : offsetRaw.replace('GMT', 'GMT')
+
+  const dstJan = new Intl.DateTimeFormat('en-CA', { timeZone: tz, timeZoneName: 'short' }).format(new Date(now.getFullYear(), 0, 1))
+  const dstJul = new Intl.DateTimeFormat('en-CA', { timeZone: tz, timeZoneName: 'short' }).format(new Date(now.getFullYear(), 6, 1))
+  const dstActive = dstJan !== dstJul
+
+  const day = DAYS[now.getDay()]
+  return { datetime, offset, dstActive, day }
+}
+
+async function cmdServerCatch(args: string[], cfg: WristworksConfig): Promise<void> {
+  const jsonMode = args.includes('--json') || args.includes('-j')
+  const probeMode = args.includes('--probe') || args.includes('-p')
+  const tzIdx = args.indexOf('-t')
+  const tzLongIdx = args.indexOf('--timezone')
+  const tzVal = (idx: number) => (idx >= 0 && idx + 1 < args.length && !args[idx + 1].startsWith('-')) ? args[idx + 1] : undefined
+  const tzFlag = args.find(a => a.startsWith('--timezone='))?.split('=', 2)[1]
+    ?? tzVal(tzLongIdx) ?? tzVal(tzIdx)
+
+  const tzValueIndices = new Set<number>()
+  if (tzIdx >= 0 && tzIdx + 1 < args.length) tzValueIndices.add(tzIdx + 1)
+  if (tzLongIdx >= 0 && tzLongIdx + 1 < args.length) tzValueIndices.add(tzLongIdx + 1)
+  const domains = args.filter((a, i) => !a.startsWith('-') && !tzValueIndices.has(i))
+
+  const entries: ServerCatchEntry[] = []
+
+  const configured = cfg.servers ?? []
+  for (const sv of configured) {
+    let ip = sv.host
+    try {
+      const addrs = await resolve4(sv.host)
+      if (addrs.length > 0) ip = addrs[0]
+    } catch {}
+    const t = tzTime(sv.timezone)
+    entries.push({
+      name: sv.name,
+      host: sv.host,
+      ip,
+      location: sv.location,
+      timezone: sv.timezone,
+      datetime: t.datetime,
+      offset: t.offset,
+      dstActive: t.dstActive,
+      day: t.day,
+      provider: sv.provider,
+    })
+  }
+
+  for (const domain of domains) {
+    let ip = domain
+    try {
+      const addrs = await resolve4(domain)
+      if (addrs.length > 0) ip = addrs[0]
+    } catch {}
+    const geo = await lookupIpWithLocation(domain, ip)
+    const tz = tzFlag || geo.timezone
+    const t = tzTime(tz)
+    entries.push({
+      name: domain,
+      host: domain,
+      ip,
+      location: tzFlag || geo.location,
+      timezone: tz,
+      datetime: t.datetime,
+      offset: t.offset,
+      dstActive: t.dstActive,
+      day: t.day,
+      provider: geo.provider,
+    })
+  }
+
+  if (probeMode) {
+    await Promise.all(entries.map(async (e) => {
+      const probe = await probeHttp(e.host)
+      e.up = probe.up
+      e.server = probe.server
+      e.statusCode = probe.statusCode
+      e.probeLatencyMs = probe.latencyMs
+    }))
+  }
+
+  if (entries.length === 0) {
+    console.error('Usage: ww server-catch [domain...]')
+    console.error('  ww server-catch                              # show configured servers')
+    console.error('  ww server-catch x.com instagram.com           # ad-hoc domains')
+    console.error('  ww server-catch x.com -t Asia/Tokyo           # with timezone hint')
+    console.error('  ww server-catch --probe                       # HTTP probe (Server header + status)')
+    console.error('  ww server-catch --json                        # JSON output')
+    process.exit(1)
+  }
+
+  if (jsonMode) {
+    console.log(JSON.stringify(entries, null, 2))
+    return
+  }
+
+  const hasStatus = entries.some(e => e.up !== undefined)
+  const hasServer = entries.some(e => e.server !== undefined)
+
+  const table = new AsciiTable3()
+    .setStyle('ascii-clean')
+  const heading = ['Name', 'Host', 'IP', 'Provider', 'Location', 'Timezone', 'Local', 'Offset', 'DST']
+  if (hasServer) heading.splice(5, 0, 'Server')
+  if (hasStatus) heading.push('Status')
+  heading.push('Day')
+  table.setHeading(...heading)
+
+  for (const e of entries) {
+    const dst = e.dstActive ? GREEN + '\u2600' + RESET : DIM + '\u2013' + RESET
+    const prov = e.provider || DIM + '\u2014' + RESET
+    const status = e.up === undefined ? ''
+      : e.up
+        ? (e.statusCode ? GREEN + '\u25CF' + RESET + ' ' + e.statusCode : GREEN + '\u25CF' + RESET)
+        : RED + '\u25CF ' + (e.probeLatencyMs ? e.probeLatencyMs + 'ms' : '') + RESET
+    const server = e.server || DIM + '\u2014' + RESET
+    const row = [e.name, e.host, e.ip, prov, e.location, e.timezone, e.datetime.slice(11, 19), e.offset, dst]
+    if (hasServer) row.splice(4, 0, server)
+    if (hasStatus) row.push(status)
+    row.push(e.day)
+    table.addRow(...row)
+  }
+  console.log(table.toString())
+}
+
 async function main() {
   const args = process.argv.slice(2)
-  const configPath = args.find(
-    a => !a.startsWith('-') && a !== 'convert' && a !== '--watch' && a !== '-w' && a !== '--json' && a !== '-j' && a !== '--debug' && a !== '-d',
-  ) || './wristworks.yaml'
-  const cfg = loadConfig(configPath)
+  const subcommand = args[0]
 
-  if (args[0] === 'convert') {
+  if (subcommand === 'convert') {
+    const cfg = loadConfig()
     return cmdConvert(args.slice(1), cfg)
   }
+
+  if (subcommand === 'ask') {
+    return cmdAsk(args.slice(1))
+  }
+
+  if (subcommand === 'server-catch') {
+    const cfg = loadConfig()
+    return cmdServerCatch(args.slice(1), cfg)
+  }
+
+  const configPath = args.find(
+    a => !a.startsWith('-') && a !== '--watch' && a !== '-w' && a !== '--json' && a !== '-j' && a !== '--debug' && a !== '-d' && a !== 'server-catch',
+  ) || './wristworks.yaml'
 
   const jsonMode = args.includes('--json') || args.includes('-j')
   const debugMode = args.includes('--debug') || args.includes('-d')

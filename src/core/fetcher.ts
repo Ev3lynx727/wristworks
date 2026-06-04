@@ -1,8 +1,8 @@
 import { createRequire } from 'node:module'
-import type { Target, TimeResult, Coordinates } from './types.js'
+import type { Target, TimeResult } from './types.js'
 
 const _require = createRequire(import.meta.url)
-let native: any
+let native: Record<string, (...args: unknown[]) => unknown> | undefined
 try {
   native = _require('../native/index.cjs')
 } catch {
@@ -95,13 +95,14 @@ function fetchTimesTs(targets: Target[], correctedUtc: Date): TimeResult[] {
 }
 
 function fetchTimesNative(targets: Target[], correctedUtc: Date): TimeResult[] {
+  if (!native) return []
   const enabled = targets.filter(t => t.enabled)
   const input = enabled.map(t => ({ name: t.name, timezone: t.timezone, label: t.label }))
-  const results = native.formatTimes(correctedUtc.getTime(), input)
-  return results.map((r: any, i: number) => {
+  const results = native.formatTimes(correctedUtc.getTime(), input) as Record<string, unknown>[]
+  return results.map((r: Record<string, unknown>, i: number) => {
     const t = enabled[i]
     const base = buildBase(t, correctedUtc)
-    base.datetime = r.datetime
+    base.datetime = r.datetime as string
     return mergeTargetMeta(t, base)
   })
 }
@@ -110,7 +111,7 @@ export function fetchTimes(targets: Target[], correctedUtc: Date): TimeResult[] 
   if (native) {
     try {
       return fetchTimesNative(targets, correctedUtc)
-    } catch (err) {
+    } catch {
       console.warn('[wristworks] native formatting failed, falling back to TS')
     }
   }

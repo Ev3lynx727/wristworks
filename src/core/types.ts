@@ -28,11 +28,22 @@ export interface ProxyConfig {
   autoDetectVpn: boolean
 }
 
+export interface ServerTarget {
+  name: string
+  host: string
+  timezone: string
+  location: string
+  port?: number
+  provider?: string
+  asn?: string
+}
+
 export interface WristworksConfig {
   ntp: NtpConfig
   targets: Target[]
   proxy?: ProxyConfig
   currency?: CurrencyConfig
+  servers?: ServerTarget[]
 }
 
 export interface CurrencyInfo {

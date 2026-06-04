@@ -33,7 +33,7 @@ function sleep(ms: number): Promise<void> {
   return new Promise(r => setTimeout(r, ms))
 }
 
-async function fetchJson(url: string, timeoutMs: number): Promise<any> {
+async function fetchJson(url: string, timeoutMs: number): Promise<unknown> {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), timeoutMs)
   try {
@@ -49,7 +49,7 @@ const moneyconvertSource: CurrencySource = {
   name: 'moneyconvert',
   base: 'USD',
   async fetch(): Promise<RawRates> {
-    const data = await fetchJson('https://cdn.moneyconvert.net/api/latest.json', 3000)
+    const data = await fetchJson('https://cdn.moneyconvert.net/api/latest.json', 3000) as { rates: Record<string, number> }
     return {
       base: 'USD',
       rates: data.rates,
@@ -62,7 +62,7 @@ const frankfurterSource: CurrencySource = {
   name: 'frankfurter',
   base: 'EUR',
   async fetch(): Promise<RawRates> {
-    const data = await fetchJson('https://api.frankfurter.dev/latest', 3000)
+    const data = await fetchJson('https://api.frankfurter.dev/latest', 3000) as { rates: Record<string, number>; date: string }
     return {
       base: 'EUR',
       rates: data.rates,
@@ -127,7 +127,7 @@ function setCached(key: string, entry: CacheEntry): void {
 
 let refreshInProgress = false
 
-async function refreshCache(base: string, ttl: number): Promise<void> {
+async function refreshCache(base: string, _ttl: number): Promise<void> {
   if (refreshInProgress) return
   refreshInProgress = true
   try {
@@ -150,7 +150,7 @@ export async function fetchRates(
   ttl = DEFAULT_TTL,
 ): Promise<CurrencyRates> {
   const key = `rates:${base.toUpperCase()}`
-  let cached = getCached(key)
+  const cached = getCached(key)
 
   if (cached && isFresh(cached, ttl)) {
     return {

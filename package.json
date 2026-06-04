@@ -1,16 +1,18 @@
 {
-  "name": "wristworks",
+  "name": "@ev3lynx727/wristworks",
   "version": "0.1.0",
   "description": "NTP-calibrated multi-timezone clock fetcher with YAML/ENV config",
   "type": "module",
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
+  "main": "./dist/core/index.js",
+  "types": "./dist/core/index.d.ts",
   "bin": {
-    "wristworks": "./dist/cli.js"
+    "wristworks": "./dist/cli/index.js"
   },
   "exports": {
-    ".": "./dist/index.js",
-    "./types": "./dist/types.js",
+    ".": "./dist/core/index.js",
+    "./cli": "./dist/cli/index.js",
+    "./mcp": "./dist/mcp/index.js",
+    "./types": "./dist/core/types.js",
     "./package.json": "./package.json"
   },
   "scripts": {
@@ -18,21 +20,33 @@
     "build:native": "napi build --manifest-path native/Cargo.toml --platform --release",
     "build:native:debug": "napi build --manifest-path native/Cargo.toml --platform",
     "start": "node dist/cli.js",
-    "dev": "tsx src/cli.ts",
+    "dev": "tsx src/cli/index.ts",
+    "dev:mcp": "tsx src/mcp/index.ts",
+    "ci": "npm run typecheck && npm run lint && npm run build",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src/",
+    "test": "echo 'No tests configured on main branch. Use feat/wristworks-ai-dev for agent tests.'",
     "prepublishOnly": "npm run build"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "ascii-table3": "^1.0.3",
     "dotenv": "^16.4.7",
+    "geoip-lite": "^2.0.2",
     "js-yaml": "^4.1.0",
-    "ntpclient": "^1.5.6"
+    "ntpclient": "^1.5.6",
+    "zod": "^4.4.3",
+    "zod-to-json-schema": "^3.25.2"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@napi-rs/cli": "^3.0.0",
     "@types/js-yaml": "^4.0.9",
     "@types/node": "^22.0.0",
+    "eslint": "^10.4.1",
     "tsx": "^4.19.0",
-    "typescript": "^5.7.0"
+    "typescript": "^5.7.0",
+    "typescript-eslint": "^8.60.1"
   },
   "napi": {
     "binaryName": "wristworks-core",

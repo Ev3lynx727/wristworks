@@ -1,4 +1,6 @@
 export { loadConfig } from './config.js'
+export { lookupIp, lookupIpWithLocation } from './geo.js'
+export { probeHttp } from './probe.js'
 export { calibrateNtp } from './ntp.js'
 export { fetchTimes } from './fetcher.js'
 export { fetchRates, convertCurrency, multiConvert, unifiedCurrency, enrichLocations, clearCurrencyCache } from './currency.js'
@@ -21,7 +23,7 @@ import { buildProxyOutput } from './proxy.js'
 import { enrichLocations } from './currency.js'
 import { cacheGet, cacheSet } from './cache.js'
 import type {
-  CalibrationBlock, Audit, WristworksOutput, ProxyInfo,
+  CalibrationBlock, Audit, WristworksOutput,
 } from './types.js'
 
 export interface WristworksOptions {

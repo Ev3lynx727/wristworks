@@ -3,6 +3,49 @@ import yaml from 'js-yaml'
 import 'dotenv/config'
 import type { WristworksConfig, Target, NtpConfig, CurrencyConfig, ConversionPreset } from './types.js'
 
+interface YamlDoc {
+  ntp?: {
+    servers?: string[]
+    timeout_ms?: number
+    sync_interval_secs?: number
+    polls?: number
+    poll_interval_ms?: number
+  }
+  targets?: {
+    name?: string
+    timezone?: string
+    label?: string
+    enabled?: boolean
+    countryCode?: string
+    city?: string
+    confidence?: string
+    coordinates?: { lat: number; lon: number }
+  }[]
+  proxy?: {
+    enabled?: boolean
+    proxies?: string[]
+    auto_detect_vpn?: boolean
+  }
+  currency?: {
+    base?: string
+    cache_ttl_secs?: number
+    conversions?: {
+      amount?: number
+      from?: string
+      to?: string
+    }[]
+  }
+  servers?: {
+    name?: string
+    host?: string
+    timezone?: string
+    location?: string
+    port?: number
+    provider?: string
+    asn?: string
+  }[]
+}
+
 function parseEnvTargets(raw: string): Target[] {
   return raw.split(',').filter(Boolean).map(entry => {
     const parts = entry.split('|')
@@ -30,7 +73,7 @@ function defaultNtp(): NtpConfig {
 
 function loadFromYaml(path: string): WristworksConfig {
   const raw = readFileSync(path, 'utf-8')
-  const doc = yaml.load(raw) as any
+  const doc = yaml.load(raw) as YamlDoc
   const def = defaultNtp()
   return {
     ntp: {
@@ -40,9 +83,9 @@ function loadFromYaml(path: string): WristworksConfig {
       polls: doc.ntp?.polls ?? def.polls,
       pollIntervalMs: doc.ntp?.poll_interval_ms ?? def.pollIntervalMs,
     },
-    targets: (doc.targets || []).map((t: any) => ({
-      name: t.name || t.timezone,
-      timezone: t.timezone,
+    targets: (doc.targets || []).map(t => ({
+      name: t.name || t.timezone || '',
+      timezone: t.timezone || '',
       label: t.label || '',
       enabled: t.enabled !== false,
       countryCode: t.countryCode,
@@ -60,13 +103,24 @@ function loadFromYaml(path: string): WristworksConfig {
     currency: doc.currency
       ? parseCurrencyYaml(doc.currency)
       : undefined,
+    servers: doc.servers
+      ? doc.servers.map(s => ({
+          name: s.name || s.host || '',
+          host: s.host || '',
+          timezone: s.timezone || 'UTC',
+          location: s.location || '',
+          port: s.port,
+          provider: s.provider,
+          asn: s.asn,
+        }))
+      : undefined,
   }
 }
 
-function parseCurrencyYaml(raw: any): CurrencyConfig {
-  const conversions: ConversionPreset[] = (raw.conversions || []).map((c: any) => ({
+function parseCurrencyYaml(raw: NonNullable<YamlDoc['currency']>): CurrencyConfig {
+  const conversions: ConversionPreset[] = (raw.conversions || []).map(c => ({
     amount: c.amount ?? 1,
-    from: c.from,
+    from: c.from || '',
     to: c.to,
   }))
   return {

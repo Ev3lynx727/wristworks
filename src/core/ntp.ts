@@ -4,31 +4,41 @@ import { NTPClient } from 'ntpclient'
 import type { NtpConfig, NtpServerResult, CalibrationBlock } from './types.js'
 
 const _require = createRequire(import.meta.url)
-let native: any
+let native: Record<string, (...args: unknown[]) => unknown> | undefined
 try {
   native = _require('../native/index.cjs')
 } catch {
 }
 
-function mapNative(r: any): NtpServerResult {
+function mapNative(r: Record<string, unknown>): NtpServerResult {
+  const host = r.host as string
+  const ip = (r.ip as string) || ''
+  const latencyMs = r.latencyMs as number
+  const jitterMs = (r.jitterMs as number | undefined) ?? null
+  const packetLoss = r.packetLoss as number
+  const driftMs = r.driftMs as number
+  const status = r.status as string
+  const stratum = r.stratum as number
+  const lastSync = (r.lastSync as string | undefined) ?? null
+  const error = (r.error as string | undefined) || undefined
   return {
-    host: r.host,
-    ip: r.ip || '',
-    latencyMs: r.latencyMs,
-    jitterMs: r.jitterMs ?? null,
-    packetLoss: r.packetLoss,
-    driftMs: r.driftMs,
-    status: r.status,
-    stratum: r.stratum,
-    lastSync: r.lastSync ?? null,
-    error: r.error || undefined,
+    host,
+    ip,
+    latencyMs,
+    jitterMs,
+    packetLoss,
+    driftMs,
+    status,
+    stratum,
+    lastSync,
+    error,
   }
 }
 
 async function pollOnce(servers: string[], timeoutMs: number): Promise<NtpServerResult[]> {
   if (native) {
     try {
-      const raw: any[] = native.calibrateNtp(servers)
+      const raw = native.calibrateNtp(servers) as Record<string, unknown>[]
       return raw.map(mapNative)
     } catch (err) {
       console.warn(`[wristworks] native NTP failed (${err}), falling back to TS`)
