@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { Wristworks, multiConvert, lookupIpWithLocation, probeHttp } from '../core/index.js'
+import { Wristworks, multiConvert, lookupIpWithLocation, probeHttp, dnsDig } from '../core/index.js'
 import type { MultiConvertRequest, WristworksConfig } from '../core/types.js'
 import { formatCurrencyRate } from '../core/constants.js'
 import { cacheGet } from '../core/cache.js'
@@ -491,6 +491,40 @@ async function cmdServerCatch(args: string[], cfg: WristworksConfig): Promise<vo
   console.log(table.toString())
 }
 
+async function cmdServerFetch(args: string[]): Promise<void> {
+  const jsonMode = args.includes('--json') || args.includes('-j')
+  const probeMode = args.includes('--probe') || args.includes('-p')
+
+  const domains = args.filter(a => !a.startsWith('-'))
+
+  if (domains.length === 0) {
+    console.error('Usage: ww server-fetch <domain...> [--probe] [--json]')
+    console.error('  ww server-fetch x.com github.io')
+    console.error('  ww server-fetch x.com --probe       # with HTTP probe')
+    console.error('  ww server-fetch --json               # JSON output')
+    process.exit(1)
+  }
+
+  const results = await Promise.all(domains.map(d => dnsDig(d, { probe: probeMode })))
+
+  if (jsonMode) {
+    console.log(JSON.stringify(results, null, 2))
+    return
+  }
+
+  for (const r of results) {
+    const ipStr = r.ips.length > 0 ? r.ips.join(', ') : DIM + 'unresolved' + RESET
+    const statusStr = r.up === undefined ? '' : r.up ? GREEN + '\u25CF UP' + RESET : RED + '\u25CF DOWN' + RESET
+    console.log(BOLD + r.domain + RESET + '  \u2192  ' + ipStr + (r.lookupTimeMs ? DIM + '  (' + r.lookupTimeMs + 'ms)' + RESET : ''))
+    if (r.location) console.log('  ' + YELLOW + '\u25B6' + RESET + '  Location: ' + r.location + DIM + '  ' + r.timezone + '  provider=' + (r.provider || '\u2014') + RESET)
+    if (statusStr) console.log('  ' + statusStr + (r.server ? DIM + '  server=' + r.server + RESET : '') + (r.statusCode ? DIM + '  status=' + r.statusCode + RESET : '') + (r.probeLatencyMs ? DIM + '  ' + r.probeLatencyMs + 'ms' + RESET : ''))
+    for (const rec of r.records) {
+      console.log('  ' + DIM + rec.type.padEnd(6) + RESET + ' ' + rec.value)
+    }
+    console.log()
+  }
+}
+
 async function main() {
   const args = process.argv.slice(2)
   const subcommand = args[0]
@@ -509,8 +543,12 @@ async function main() {
     return cmdServerCatch(args.slice(1), cfg)
   }
 
+  if (subcommand === 'server-fetch') {
+    return cmdServerFetch(args.slice(1))
+  }
+
   const configPath = args.find(
-    a => !a.startsWith('-') && a !== '--watch' && a !== '-w' && a !== '--json' && a !== '-j' && a !== '--debug' && a !== '-d' && a !== 'server-catch',
+    a => !a.startsWith('-') && a !== '--watch' && a !== '-w' && a !== '--json' && a !== '-j' && a !== '--debug' && a !== '-d' && a !== 'server-catch' && a !== 'server-fetch',
   ) || './wristworks.yaml'
 
   const jsonMode = args.includes('--json') || args.includes('-j')

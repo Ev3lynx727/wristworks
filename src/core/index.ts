@@ -1,6 +1,8 @@
 export { loadConfig } from './config.js'
 export { lookupIp, lookupIpWithLocation } from './geo.js'
 export { probeHttp } from './probe.js'
+export { dnsDig, stripUrl } from './dns.js'
+export type { DnsDigResult, DnsRecord } from './dns.js'
 export { calibrateNtp } from './ntp.js'
 export { fetchTimes } from './fetcher.js'
 export { fetchRates, convertCurrency, multiConvert, unifiedCurrency, enrichLocations, clearCurrencyCache } from './currency.js'
