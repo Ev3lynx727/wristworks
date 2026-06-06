@@ -8,6 +8,11 @@
   "bin": {
     "wristworks": "./dist/cli/index.js"
   },
+  "files": [
+    "dist/",
+    "native/index.cjs",
+    "native/index.d.ts"
+  ],
   "exports": {
     ".": "./dist/core/index.js",
     "./cli": "./dist/cli/index.js",
