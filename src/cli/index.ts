@@ -127,11 +127,11 @@ function renderDashboard(
 
   const table = new AsciiTable3()
     .setStyle('ascii-clean')
-    .setHeading('Ticker', 'Rate', 'Change', 'Timezone', 'Day', 'Local', 'Offset', 'DST', 'Infl', 'GDP')
+    .setHeading('Ticker', 'Rate', 'Change', 'Timezone', 'Day', 'Date', 'Local', 'Offset', 'DST', 'Infl', 'GDP')
     .setAlignRight(1)
     .setAlignRight(2)
-    .setAlignRight(8)
     .setAlignRight(9)
+    .setAlignRight(10)
 
   for (const loc of out.locations) {
     const ticker = loc.currency?.code || '\u2014'
@@ -164,11 +164,14 @@ function renderDashboard(
 
     const tz = loc.timezone.substring(0, 20) + ' (' + loc.label + ')'
     const day = dayName(loc.datetime)
+    const dt = new Date(loc.datetime)
+    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+    const dateStr = months[dt.getMonth()] + ' ' + String(dt.getDate()).padStart(2, '0')
     const time = loc.datetime.slice(11, 16)
     const offset = loc.offset
     const dst = loc.dstActive ? GREEN + '\u2600' + RESET : DIM + '\u2013' + RESET
 
-    table.addRow(ticker, rate, change, tz, day, time, offset, dst, infl, gdp)
+    table.addRow(ticker, rate, change, tz, day, dateStr, time, offset, dst, infl, gdp)
   }
 
   const tickLabel = tickNum > 0 ? `  Tick #${tickNum}` : ''

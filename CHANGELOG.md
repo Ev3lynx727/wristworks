@@ -28,7 +28,7 @@
 - Extra indent on `indicators` subcommand help line in CLI
 
 ### Changed
-- Dashboard expands to 10 columns: Ticker, Rate, Change, Timezone, Day, Local, Offset, DST, Infl, GDP
+- Dashboard expands to 11 columns: Ticker, Rate, Change, Timezone, Day, Date, Local, Offset, DST, Infl, GDP
 - MCP tool `get_data_regions` renamed to `get_regions`
 - `enrichLocationsWithImf()` accepts optional `{ periods?, indicators? }` options
 
