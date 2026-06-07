@@ -53,8 +53,8 @@ npx wristworks convert 1 USD IDR --json
 # Debug mode (cache state, rate changes)
 npx wristworks --debug
 
-# MCP server (for AI copilot)
-npx wristworks mcp
+# MCP server (for AI copilot — no install)
+npx -y @ev3lynx727/wristworks mcp
 ```
 
 ## Config
@@ -149,7 +149,9 @@ wristworks exposes all tools via the Model Context Protocol, letting AI agents q
 | `get_country` | Detailed IMF country profile with region classification |
 | `get_regions` | IMF WEO regional groupings and member countries |
 
-### Setup
+### Setup (No Install Required)
+
+All examples use `npx -y` so the package runs without cloning or installing globally.
 
 **Cursor / VS Code** — `.mcp.json` is pre-configured at project root:
 
@@ -157,8 +159,8 @@ wristworks exposes all tools via the Model Context Protocol, letting AI agents q
 {
   "mcpServers": {
     "wristworks": {
-      "command": "node",
-      "args": ["dist/mcp/index.js"]
+      "command": "npx",
+      "args": ["-y", "@ev3lynx727/wristworks", "mcp"]
     }
   }
 }
@@ -170,8 +172,8 @@ wristworks exposes all tools via the Model Context Protocol, letting AI agents q
 {
   "mcpServers": {
     "wristworks": {
-      "command": "node",
-      "args": ["dist/mcp/index.js"]
+      "command": "npx",
+      "args": ["-y", "@ev3lynx727/wristworks", "mcp"]
     }
   }
 }
@@ -183,8 +185,8 @@ wristworks exposes all tools via the Model Context Protocol, letting AI agents q
 {
   "mcpServers": {
     "wristworks": {
-      "command": "node",
-      "args": ["/path/to/wristworks/dist/mcp/index.js"]
+      "command": "npx",
+      "args": ["-y", "@ev3lynx727/wristworks", "mcp"]
     }
   }
 }
@@ -193,7 +195,7 @@ wristworks exposes all tools via the Model Context Protocol, letting AI agents q
 **Any MCP client** — run directly:
 
 ```bash
-node dist/mcp/index.js
+npx -y @ev3lynx727/wristworks mcp
 ```
 
 ### Example Agent Queries

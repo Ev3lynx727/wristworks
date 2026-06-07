@@ -758,6 +758,15 @@ async function main() {
     return cmdImf(subArgs)
   }
 
+  if (subcommand === 'mcp') {
+    const { createMcpServer } = await import('../mcp/index.js')
+    const { StdioServerTransport } = await import('@modelcontextprotocol/sdk/server/stdio.js')
+    const server = await createMcpServer()
+    const transport = new StdioServerTransport()
+    await server.connect(transport)
+    return
+  }
+
   const configPath = configFlag
     || args.find(
       a => !a.startsWith('-') && a !== '--watch' && a !== '-w' && a !== '--json' && a !== '-j' && a !== '--debug' && a !== '-d' && a !== 'server-catch' && a !== 'server-fetch' && !a.startsWith('--region') && a !== '-r' && !a.startsWith('--config'),
