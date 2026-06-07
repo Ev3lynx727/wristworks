@@ -142,7 +142,7 @@ wristworks exposes all tools via the Model Context Protocol, letting AI agents q
 | `convert` | Real-time currency conversion with 3-source fallback |
 | `calibrate` | NTP clock drift measurement per server |
 | `server_fetch` | Full DNS dig (A, MX, NS, TXT, CNAME, SOA, etc.) with geo + probe |
-| `server_catch` | Resolve domains to IPs with timezone-aware local time and HTTP probe |
+| `server_catch` | Resolve database/cloud server domains to IPs with timezone-aware local time and HTTP probe — verify cross-region server times match |
 | `get_version` | Package version from calibration audit |
 | `get_everything` | Comprehensive global snapshot (times + rates + NTP + servers + proxy) |
 | `get_data` | IMF economic indicators by country (GDP, inflation, unemployment, debt) |
@@ -206,7 +206,8 @@ Once connected, AI agents can answer questions like:
 - "Convert 500 USD to IDR, SGD, and JPY"
 - "Show me US inflation rate and GDP ranking"
 - "What IMF region is Indonesia in?"
-- "Is x.com up? What server is it running?"
+- "Check if my Supabase/Neon DB servers are up and show each region's local time"
+- "Do the server times match between the Singapore and Jakarta data centers?"
 - "Run NTP calibration and report clock drift"
 
 ## License
