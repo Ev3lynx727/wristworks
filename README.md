@@ -130,6 +130,83 @@ npm run typecheck     # tsc --noEmit
 npm run lint          # eslint
 ```
 
+## MCP Integration (Agentic AI)
+
+wristworks exposes all tools via the Model Context Protocol, letting AI agents query times, currencies, economic data, and servers in real time.
+
+### Tools Available
+
+| Tool | Description |
+|------|-------------|
+| `get_times` | Current times for all configured locations with rates and NTP state |
+| `convert` | Real-time currency conversion with 3-source fallback |
+| `calibrate` | NTP clock drift measurement per server |
+| `server_fetch` | Full DNS dig (A, MX, NS, TXT, CNAME, SOA, etc.) with geo + probe |
+| `server_catch` | Resolve domains to IPs with timezone-aware local time and HTTP probe |
+| `get_version` | Package version from calibration audit |
+| `get_everything` | Comprehensive global snapshot (times + rates + NTP + servers + proxy) |
+| `get_data` | IMF economic indicators by country (GDP, inflation, unemployment, debt) |
+| `get_country` | Detailed IMF country profile with region classification |
+| `get_regions` | IMF WEO regional groupings and member countries |
+
+### Setup
+
+**Cursor / VS Code** — `.mcp.json` is pre-configured at project root:
+
+```json
+{
+  "mcpServers": {
+    "wristworks": {
+      "command": "node",
+      "args": ["dist/mcp/index.js"]
+    }
+  }
+}
+```
+
+**OpenCode** — add to `opencode.json`:
+
+```json
+{
+  "mcpServers": {
+    "wristworks": {
+      "command": "node",
+      "args": ["dist/mcp/index.js"]
+    }
+  }
+}
+```
+
+**Claude Desktop** — add to `claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "wristworks": {
+      "command": "node",
+      "args": ["/path/to/wristworks/dist/mcp/index.js"]
+    }
+  }
+}
+```
+
+**Any MCP client** — run directly:
+
+```bash
+node dist/mcp/index.js
+```
+
+### Example Agent Queries
+
+Once connected, AI agents can answer questions like:
+
+- "What time is it in Jakarta, Tokyo, and New York right now?"
+- "Convert 500 USD to IDR, SGD, and JPY"
+- "Show me US inflation rate and GDP ranking"
+- "What IMF region is Indonesia in?"
+- "Is x.com up? What server is it running?"
+- "Run NTP calibration and report clock drift"
+
 ## License
 
 MIT
