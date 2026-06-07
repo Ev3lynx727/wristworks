@@ -1,6 +1,6 @@
 {
   "name": "@ev3lynx727/wristworks",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "NTP-calibrated multi-timezone clock fetcher with YAML/ENV config",
   "type": "module",
   "main": "./dist/core/index.js",

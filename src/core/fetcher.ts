@@ -34,10 +34,10 @@ function getTzOffsetMinutes(tz: string, date: Date): number {
   const raw = new Intl.DateTimeFormat('en-US', opts)
     .formatToParts(date)
     .find(p => p.type === 'timeZoneName')?.value || 'UTC+0'
-  const match = raw.match(/(?:GMT|UTC)([+-]\d+)(?::(\d+))?/)
-  if (!match) return 0
-  const h = parseInt(match[1])
-  const m = parseInt(match[2] || '0')
+  const matched = raw.match(/(?:GMT|UTC)([+-]\d+)(?::(\d+))?/)
+  if (!matched) return 0
+  const h = parseInt(matched[1])
+  const m = parseInt(matched[2] || '0')
   return h * 60 + (h < 0 ? -m : m)
 }
 

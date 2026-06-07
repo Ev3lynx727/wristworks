@@ -44,6 +44,7 @@ export interface WristworksConfig {
   proxy?: ProxyConfig
   currency?: CurrencyConfig
   servers?: ServerTarget[]
+  skipImf?: boolean
 }
 
 export interface CurrencyInfo {
@@ -64,6 +65,7 @@ export interface TimeResult {
   confidence: string
   coordinates: Coordinates | null
   currency?: CurrencyInfo
+  imf?: ImfEnrichment
 }
 
 export interface NtpServerResult {
@@ -188,4 +190,45 @@ export interface UnifiedCurrencySnapshot {
   stale: boolean
   bases: Record<string, { base: string; rates: Record<string, number> }>
   pairs: Record<string, number>
+}
+
+export interface ImfRegion {
+  code: string
+  label: string
+}
+
+export interface ImfCountry {
+  code: string
+  label: string
+}
+
+export interface ImfIndicatorMeta {
+  code: string
+  label: string
+  description?: string
+  unit?: string
+  source?: string
+  dataset?: string
+}
+
+export interface ImfIndicatorValue {
+  year: string
+  value: number
+}
+
+export interface ImfIndicatorSnapshot {
+  meta: ImfIndicatorMeta
+  values: Record<string, ImfIndicatorValue[]>
+}
+
+export interface ImfEnrichment {
+  region: ImfRegion | null
+  indicators: Record<string, number>
+  gdpRank?: number
+}
+
+export interface ImfSnapshot {
+  regions: ImfRegion[]
+  countries: ImfCountry[]
+  indicators: Record<string, ImfIndicatorMeta>
 }

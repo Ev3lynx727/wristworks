@@ -44,6 +44,7 @@ interface YamlDoc {
     provider?: string
     asn?: string
   }[]
+  skip_imf?: boolean
 }
 
 function parseEnvTargets(raw: string): Target[] {
@@ -114,7 +115,15 @@ function loadFromYaml(path: string): WristworksConfig {
           asn: s.asn,
         }))
       : undefined,
+    skipImf: doc.skip_imf ?? false,
   }
+}
+
+function parseEnvVar(v: string): string {
+  if (v.startsWith('${') && v.endsWith('}')) {
+    return process.env[v.slice(2, -1)] || ''
+  }
+  return v
 }
 
 function parseCurrencyYaml(raw: NonNullable<YamlDoc['currency']>): CurrencyConfig {

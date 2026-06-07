@@ -7,6 +7,7 @@ export { calibrateNtp } from './ntp.js'
 export { fetchTimes } from './fetcher.js'
 export { fetchRates, convertCurrency, multiConvert, unifiedCurrency, enrichLocations, clearCurrencyCache } from './currency.js'
 export { cacheGet, cacheSet, cacheClear } from './cache.js'
+export { fetchRegions, fetchCountries, fetchIndicatorsMeta, fetchIndicator, fetchImfSnapshot, enrichLocationsWithImf, fetchGdpRankings, alpha2to3, countryToRegion, getCountriesByRegion, parsePeriods } from './imf.js'
 export type {
   WristworksConfig, Target, NtpConfig,
   TimeResult, Coordinates, CurrencyInfo,
@@ -15,6 +16,7 @@ export type {
   CurrencyConfig, CurrencyRates, CurrencyConversion,
   ConversionPreset, MultiConvertRequest, MultiConvertResult,
   UnifiedCurrencyOptions, UnifiedCurrencySnapshot,
+  ImfRegion, ImfCountry, ImfIndicatorMeta, ImfIndicatorValue, ImfIndicatorSnapshot, ImfEnrichment, ImfSnapshot,
 } from './types.js'
 
 import { readFileSync } from 'node:fs'
@@ -23,13 +25,15 @@ import { calibrateNtp } from './ntp.js'
 import { fetchTimes } from './fetcher.js'
 import { buildProxyOutput } from './proxy.js'
 import { enrichLocations } from './currency.js'
+import { enrichLocationsWithImf, alpha2to3, fetchGdpRankings } from './imf.js'
 import { cacheGet, cacheSet } from './cache.js'
 import type {
-  CalibrationBlock, Audit, WristworksOutput,
+  CalibrationBlock, Audit, WristworksOutput, ImfEnrichment,
 } from './types.js'
 
 export interface WristworksOptions {
   configPath?: string
+  skipImf?: boolean
 }
 
 function loadVersion(): string {
@@ -93,6 +97,31 @@ export class Wristworks {
   async run(): Promise<WristworksOutput> {
     const calibration = await this.calibrate()
     const locations = await enrichLocations(this.fetchAll())
+    if (!this.config.skipImf) {
+      try {
+        const imfMap = await enrichLocationsWithImf(locations)
+        for (const loc of locations) {
+          if (loc.countryCode) {
+            const a3 = alpha2to3(loc.countryCode)
+            if (a3) loc.imf = imfMap[a3]
+          }
+        }
+      } catch (err) {
+        console.warn('[wristworks] IMF enrichment failed:', err instanceof Error ? err.message : String(err))
+      }
+
+      try {
+        const rankings = await fetchGdpRankings()
+        for (const loc of locations) {
+          if (loc.countryCode) {
+            const a3 = alpha2to3(loc.countryCode)
+            if (a3 && rankings[a3] && loc.imf) loc.imf.gdpRank = rankings[a3]
+          }
+        }
+      } catch (err) {
+        console.warn('[wristworks] GDP ranking failed:', err instanceof Error ? err.message : String(err))
+      }
+    }
     const proxy = buildProxyOutput(this.config.proxy)
     const out: WristworksOutput = { calibration, locations, audit: this.buildAudit() }
     if (proxy) out.proxy = proxy

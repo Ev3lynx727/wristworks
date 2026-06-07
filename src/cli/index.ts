@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-import { Wristworks, multiConvert, lookupIpWithLocation, probeHttp, dnsDig } from '../core/index.js'
-import type { MultiConvertRequest, WristworksConfig } from '../core/types.js'
+import { Wristworks, multiConvert, lookupIpWithLocation, probeHttp, dnsDig, fetchRegions, fetchCountries, fetchIndicatorsMeta, fetchIndicator, fetchImfSnapshot, getCountriesByRegion, alpha2to3 } from '../core/index.js'
+import type { MultiConvertRequest, WristworksConfig, ImfRegion, ImfCountry, ImfIndicatorMeta, ImfIndicatorValue } from '../core/types.js'
 import { formatCurrencyRate } from '../core/constants.js'
 import { cacheGet } from '../core/cache.js'
 import { loadConfig } from '../core/config.js'
@@ -26,6 +26,10 @@ function up(s: string): string { return GREEN + '\u25B2 ' + s + RESET }
 function down(s: string): string { return RED + '\u25BC ' + s + RESET }
 function flat(s: string): string { return DIM + '\u2014 ' + s + RESET }
 function tag(t: string, s: string): string { return DIM + '[' + t + ']' + RESET + ' ' + s }
+
+function parseAmount(s: string): number {
+  return parseFloat(s.replace(/\./g, ''))
+}
 
 interface RateSnapshot {
   timestamp: string
@@ -108,11 +112,26 @@ function renderDashboard(
     ? synced.map(s => s.driftMs).sort((a, b) => a - b)[Math.floor(synced.length / 2)]
     : 0
 
+  function inflColor(v: number): string {
+    if (v < 3) return GREEN + v.toFixed(1) + '%' + RESET
+    if (v < 6) return YELLOW + v.toFixed(1) + '%' + RESET
+    return RED + v.toFixed(1) + '%' + RESET
+  }
+
+  function rankColor(r: number): string {
+    if (r <= 10) return GREEN + '#' + r + RESET
+    if (r <= 30) return CYAN + '#' + r + RESET
+    if (r <= 60) return YELLOW + '#' + r + RESET
+    return DIM + '#' + r + RESET
+  }
+
   const table = new AsciiTable3()
     .setStyle('ascii-clean')
-    .setHeading('Ticker', 'Rate', 'Change', 'Timezone', 'Day', 'Local', 'Offset', 'DST')
+    .setHeading('Ticker', 'Rate', 'Change', 'Timezone', 'Day', 'Local', 'Offset', 'DST', 'Infl', 'GDP')
     .setAlignRight(1)
     .setAlignRight(2)
+    .setAlignRight(8)
+    .setAlignRight(9)
 
   for (const loc of out.locations) {
     const ticker = loc.currency?.code || '\u2014'
@@ -139,13 +158,17 @@ function renderDashboard(
       change = flat('-')
     }
 
+    const pcpi = loc.imf?.indicators?.PCPI
+    const infl = pcpi !== undefined ? inflColor(pcpi) : DIM + '\u2014' + RESET
+    const gdp = loc.imf?.gdpRank !== undefined ? rankColor(loc.imf.gdpRank) : DIM + '\u2014' + RESET
+
     const tz = loc.timezone.substring(0, 20) + ' (' + loc.label + ')'
     const day = dayName(loc.datetime)
     const time = loc.datetime.slice(11, 16)
     const offset = loc.offset
     const dst = loc.dstActive ? GREEN + '\u2600' + RESET : DIM + '\u2013' + RESET
 
-    table.addRow(ticker, rate, change, tz, day, time, offset, dst)
+    table.addRow(ticker, rate, change, tz, day, time, offset, dst, infl, gdp)
   }
 
   const tickLabel = tickNum > 0 ? `  Tick #${tickNum}` : ''
@@ -168,6 +191,14 @@ function renderDashboard(
     : null
   const nextSync = new Date(out.audit.nextSync).toLocaleTimeString()
 
+  const now = Date.now()
+  const epochSec = Math.floor(now / 1000)
+  const epochZones = ['UTC', 'Asia/Jakarta', 'America/New_York']
+  const epochStr = epochZones.map(tz => {
+    const d = new Date(now)
+    return tz + ' ' + d.toLocaleString('en-US', { timeZone: tz, hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })
+  }).join('  |  ')
+
   let footer: string
   if (lastSync && lastRates && lastSync === lastRates) {
     footer = 'Last sync/rates: ' + lastSync
@@ -176,7 +207,7 @@ function renderDashboard(
   } else {
     footer = 'Last sync: ' + (lastSync ?? '-') + '  |  Last rates: ' + (lastRates ?? '-')
   }
-  footer += '  |  Next sync: ' + nextSync
+  footer += '  |  Next sync: ' + nextSync + '  |  \u2317 ' + epochSec + '  |  ' + epochStr
   console.log(DIM + footer + RESET)
   lines++
   return lines
@@ -192,10 +223,19 @@ function resolveConversions(
 
   if (triples.length > 0) {
     const convs: MultiConvertRequest[] = []
-    for (let i = 0; i < triples.length; i += 3) {
-      const amount = parseFloat(triples[i])
-      if (isNaN(amount)) { console.error('Invalid amount:', triples[i]); process.exit(1) }
-      convs.push({ amount, from: triples[i + 1].toUpperCase(), to: triples[i + 2].toUpperCase() })
+    const firstAmount = parseAmount(triples[0])
+    const isMultiTo = !isNaN(firstAmount) && triples.length >= 4 && isNaN(parseAmount(triples[3]))
+    if (isMultiTo) {
+      const from = triples[1].toUpperCase()
+      for (let i = 2; i < triples.length; i++) {
+        convs.push({ amount: firstAmount, from, to: triples[i].toUpperCase() })
+      }
+    } else {
+      for (let i = 0; i < triples.length; i += 3) {
+        const amount = parseAmount(triples[i])
+        if (isNaN(amount)) { console.error('Invalid amount:', triples[i]); process.exit(1) }
+        convs.push({ amount, from: triples[i + 1].toUpperCase(), to: triples[i + 2].toUpperCase() })
+      }
     }
     return convs
   }
@@ -219,7 +259,7 @@ async function cmdConvert(args: string[], cfg: WristworksConfig): Promise<void> 
   const hasTo = args.includes('--to')
   const toFlag = args.find(a => a.startsWith('--to='))?.split('=', 2)[1]
     ?? (hasTo ? args[args.indexOf('--to') + 1] : undefined)
-  const amountFlag = parseFloat(
+  const amountFlag = parseAmount(
     args.find(a => a.startsWith('--amount='))?.split('=', 2)[1]
     ?? (args.includes('--amount') ? args[args.indexOf('--amount') + 1] : 'NaN'),
   )
@@ -314,7 +354,7 @@ function printConvertResults(results: Awaited<ReturnType<typeof multiConvert>>, 
   console.log(table.toString())
 }
 
-async function cmdAsk(args: string[]): Promise<void> {
+async function cmdAsk(args: string[], _region?: string): Promise<void> {
   const jsonMode = args.includes('--json') || args.includes('-j')
   const prompt = args.filter(a => !a.startsWith('-')).join(' ')
 
@@ -324,7 +364,7 @@ async function cmdAsk(args: string[]): Promise<void> {
     } else {
       console.log(BOLD + 'ww ask' + RESET + '  \u2014  ' + DIM + 'AI-powered timezone assistant' + RESET)
       console.log()
-      console.log(DIM + '  Usage: ww ask <your question> (requires feat/wristworks-ai-dev branch)' + RESET)
+      console.log(DIM + '  Usage: ww ask <your question> [--explain] [--json]' + RESET)
     }
     return
   }
@@ -415,18 +455,23 @@ async function cmdServerCatch(args: string[], cfg: WristworksConfig): Promise<vo
     })
   }
 
+  function stripUrl(s: string): string {
+    try { return new URL(s).hostname } catch { return s.replace(/^https?:\/\//, '').split('/')[0].split('?')[0] }
+  }
+
   for (const domain of domains) {
-    let ip = domain
+    const host = stripUrl(domain)
+    let ip = host
     try {
-      const addrs = await resolve4(domain)
+      const addrs = await resolve4(host)
       if (addrs.length > 0) ip = addrs[0]
     } catch {}
-    const geo = await lookupIpWithLocation(domain, ip)
+    const geo = await lookupIpWithLocation(host, ip)
     const tz = tzFlag || geo.timezone
     const t = tzTime(tz)
     entries.push({
       name: domain,
-      host: domain,
+      host,
       ip,
       location: tzFlag || geo.location,
       timezone: tz,
@@ -525,31 +570,198 @@ async function cmdServerFetch(args: string[]): Promise<void> {
   }
 }
 
+async function cmdImf(args: string[]): Promise<void> {
+  const jsonMode = args.includes('--json') || args.includes('-j')
+  const periodsFlag = args.find(a => a.startsWith('--periods='))?.split('=', 2)[1]
+  const rawPeriodsIdx = args.indexOf('--periods')
+  const periods = periodsFlag ?? (rawPeriodsIdx >= 0 && rawPeriodsIdx + 1 < args.length ? args[rawPeriodsIdx + 1] : undefined)
+  const periodsValueIdx = periodsFlag ? -1 : rawPeriodsIdx >= 0 ? rawPeriodsIdx + 1 : -1
+  const nonFlag = args.filter((a, i) => !a.startsWith('-') && i !== periodsValueIdx)
+
+  const sub = nonFlag[0]
+  const rest = nonFlag.slice(1)
+
+  if (sub === 'regions') {
+    const regions = await fetchRegions()
+    if (jsonMode) {
+      console.log(JSON.stringify(regions, null, 2))
+      return
+    }
+    const countryGroups = await getCountriesByRegion()
+    const table = new AsciiTable3()
+      .setStyle('ascii-clean')
+      .setHeading('Code', 'Region', 'Countries')
+    for (const r of regions) {
+      const count = countryGroups.find(g => g.region.code === r.code)?.countries.length ?? 0
+      table.addRow(r.code, r.label, count)
+    }
+    console.log(table.toString())
+    return
+  }
+
+  if (sub === 'countries') {
+    const regionCode = rest[0]
+    const groups = await getCountriesByRegion(regionCode)
+    if (jsonMode) {
+      console.log(JSON.stringify(groups, null, 2))
+      return
+    }
+    for (const g of groups) {
+      console.log(BOLD + g.region.label + RESET + DIM + '  (' + g.region.code + ')' + RESET)
+      const table = new AsciiTable3()
+        .setStyle('ascii-clean')
+        .setHeading('Code', 'Country')
+      for (const c of g.countries) {
+        table.addRow(c.code, c.label)
+      }
+      console.log(table.toString())
+    }
+    return
+  }
+
+  if (sub === 'indicators') {
+    const code = rest[0]
+    if (!code) {
+      console.error('Usage: ww imf indicators <country_code> [--codes NGDP_RPCH,PCPI,...] [--periods <year>] [--json]')
+      process.exit(1)
+    }
+    const a3 = alpha2to3(code)
+    if (!a3) {
+      console.error('Unknown country code:', code)
+      process.exit(1)
+    }
+    const codesFlag = args.find(a => a.startsWith('--codes='))?.split('=', 2)[1]
+    const codesIdx = args.indexOf('--codes')
+    const codesVal = codesIdx >= 0 && codesIdx + 1 < args.length && !args[codesIdx + 1].startsWith('-') ? args[codesIdx + 1] : undefined
+    const customCodes = codesFlag ?? codesVal
+    const indicatorCodes = customCodes
+      ? customCodes.split(',').map(s => s.trim()).filter(Boolean)
+      : ['NGDP_RPCH', 'NGDPD', 'PCPI', 'LUR', 'GGXWDG_NGDP', 'BCA_NGDPD', 'GGXONLB_NGDP']
+
+    const [snapshot, allCountries] = await Promise.all([
+      fetchImfSnapshot(code),
+      fetchCountries(),
+    ])
+    const country = allCountries.find(c => c.code === a3)
+    const entries: { code: string; label: string; year: string; value: number }[] = []
+    const indicatorResults = await Promise.allSettled(
+      indicatorCodes.map(ind => fetchIndicator(ind, [a3], periods)),
+    )
+    for (const result of indicatorResults) {
+      if (result.status === 'rejected') continue
+      const snap = result.value
+      const vals = snap.values[a3]
+      if (vals && vals.length > 0) {
+        for (const v of vals) {
+          entries.push({
+            code: snap.meta.code,
+            label: snap.meta.label,
+            year: v.year,
+            value: v.value,
+          })
+        }
+      }
+    }
+
+    if (jsonMode) {
+      console.log(JSON.stringify({
+        country: country ?? { code: a3, label: a3 },
+        regions: snapshot.regions,
+        indicators: entries,
+      }, null, 2))
+      return
+    }
+
+    console.log(BOLD + (country?.label ?? a3) + RESET + DIM + '  (' + a3 + ')' + RESET)
+    if (entries.length === 0) {
+      console.log(DIM + 'No indicator data available' + RESET)
+      return
+    }
+    const table = new AsciiTable3()
+      .setStyle('ascii-clean')
+      .setHeading('Indicator', 'Label', 'Year', 'Value')
+    for (const e of entries) {
+      table.addRow(e.code, e.label, e.year, e.value)
+    }
+    console.log(table.toString())
+    return
+  }
+
+  // default: show help
+  console.log(BOLD + 'ww imf' + RESET + '  \u2014  ' + DIM + 'IMF DataMapper economic indicators' + RESET)
+  console.log()
+  console.log(DIM + '  Subcommands:' + RESET)
+  console.log('    ' + BOLD + 'regions' + RESET + '      List IMF WEO regions')
+  console.log('    ' + BOLD + 'countries' + RESET + '    List countries (optionally by region code)')
+  console.log('    ' + BOLD + 'indicators' + RESET + '  Show indicator values for a country')
+  console.log()
+  console.log(DIM + '  Options:' + RESET)
+  console.log('    --json              JSON output')
+  console.log('    --periods <y>       Year filter (e.g. 2024, 2020-2026, or 2020,2022,2024)')
+  console.log('    --codes <list>      Comma-separated indicator codes (e.g. NGDP_RPCH,NGDPD)')
+  console.log()
+  console.log(DIM + '  Examples:' + RESET)
+  console.log('    ww imf regions')
+  console.log('    ww imf countries APQ')
+  console.log('    ww imf indicators US')
+  console.log('    ww imf indicators ID --periods 2024 --json')
+  console.log('    ww imf indicators US --periods 2020-2026')
+}
+
 async function main() {
   const args = process.argv.slice(2)
+
+  const configFlag = args.find(a => a.startsWith('--config='))?.split('=', 2)[1]
+    ?? (args.includes('--config') && args[args.indexOf('--config') + 1]?.startsWith('-') === false
+      ? args[args.indexOf('--config') + 1] : undefined)
+
+  const regionFlag = args.find(a => a.startsWith('--region='))?.split('=', 2)[1]
+    ?? (args.includes('--region') && args[args.indexOf('--region') + 1]?.startsWith('-') === false
+      ? args[args.indexOf('--region') + 1] : undefined)
+    ?? (args.includes('-r') && args[args.indexOf('-r') + 1]?.startsWith('-') === false
+      ? args[args.indexOf('-r') + 1] : undefined)
+    ?? process.env.WW_REGION
+
+  if (args.includes('--list-regions')) {
+    console.log('Region profiles are available in wristworks-ai (feat/wristworks-ai-dev branch)')
+    return
+  }
+
   const subcommand = args[0]
+  const subArgs = args.slice(1).filter((a, i, arr) => {
+    if (a === '--region' || a === '-r') { const next = arr[i + 1]; if (next && !next.startsWith('-')) return false; return false }
+    if (a === '--config') { const next = arr[i + 1]; if (next && !next.startsWith('-')) return false; return false }
+    if (a.startsWith('--region=')) return false
+    if (a.startsWith('--config=')) return false
+    return true
+  })
 
   if (subcommand === 'convert') {
-    const cfg = loadConfig()
-    return cmdConvert(args.slice(1), cfg)
+    const cfg = loadConfig(configFlag)
+    return cmdConvert(subArgs, cfg)
   }
 
   if (subcommand === 'ask') {
-    return cmdAsk(args.slice(1))
+    return cmdAsk(subArgs, regionFlag)
   }
 
   if (subcommand === 'server-catch') {
-    const cfg = loadConfig()
-    return cmdServerCatch(args.slice(1), cfg)
+    const cfg = loadConfig(configFlag)
+    return cmdServerCatch(subArgs, cfg)
   }
 
   if (subcommand === 'server-fetch') {
-    return cmdServerFetch(args.slice(1))
+    return cmdServerFetch(subArgs)
   }
 
-  const configPath = args.find(
-    a => !a.startsWith('-') && a !== '--watch' && a !== '-w' && a !== '--json' && a !== '-j' && a !== '--debug' && a !== '-d' && a !== 'server-catch' && a !== 'server-fetch',
-  ) || './wristworks.yaml'
+  if (subcommand === 'imf') {
+    return cmdImf(subArgs)
+  }
+
+  const configPath = configFlag
+    || args.find(
+      a => !a.startsWith('-') && a !== '--watch' && a !== '-w' && a !== '--json' && a !== '-j' && a !== '--debug' && a !== '-d' && a !== 'server-catch' && a !== 'server-fetch' && !a.startsWith('--region') && a !== '-r' && !a.startsWith('--config'),
+    ) || './wristworks.yaml'
 
   const jsonMode = args.includes('--json') || args.includes('-j')
   const debugMode = args.includes('--debug') || args.includes('-d')
