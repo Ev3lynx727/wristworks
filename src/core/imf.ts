@@ -1,4 +1,5 @@
 import { cacheGet, cacheSet } from './cache.js'
+import { getAllCountries } from 'countries-and-timezones'
 import type { ImfRegion, ImfCountry, ImfIndicatorMeta, ImfIndicatorValue, ImfIndicatorSnapshot, ImfEnrichment, ImfSnapshot } from './types.js'
 
 const BASE = 'https://www.imf.org/external/datamapper/api/v2'
@@ -188,15 +189,24 @@ const WB_INDICATOR_MAP: Record<string, string> = {
 }
 
 async function fetchWorldBankIndicatorAll(wbCode: string): Promise<Record<string, number>> {
-  const url = `https://api.worldbank.org/v2/country/all/indicator/${wbCode}?format=json&per_page=500&date=2024`
-  const data = await fetchJson<[unknown, { countryiso3code: string; value: number | null }[]]>(url)
-  const result: Record<string, number> = {}
-  for (const entry of data[1]) {
-    if (entry.value !== null && KNOWN_COUNTRY_A3.has(entry.countryiso3code)) {
-      result[entry.countryiso3code] = entry.value
+  const thisYear = new Date().getFullYear()
+  for (let year = thisYear; year >= thisYear - 3; year--) {
+    try {
+      const url = `https://api.worldbank.org/v2/country/all/indicator/${wbCode}?format=json&per_page=500&date=${year}`
+      const data = await fetchJson<[unknown, { countryiso3code: string; value: number | null }[]]>(url)
+      if (!Array.isArray(data) || data.length < 2 || !Array.isArray(data[1])) continue
+      const result: Record<string, number> = {}
+      for (const entry of data[1]) {
+        if (entry.value !== null && KNOWN_COUNTRY_A3.has(entry.countryiso3code)) {
+          result[entry.countryiso3code] = entry.value
+        }
+      }
+      if (Object.keys(result).length > 50) return result
+    } catch {
+      continue
     }
   }
-  return result
+  return {}
 }
 
 export async function enrichLocationsWithImf(
@@ -241,24 +251,122 @@ export async function enrichLocationsWithImf(
 
 const gdpRankCache = 'imf:gdp:rank'
 
+function buildWorldometersNameToA3(): Record<string, string> {
+  const countries = getAllCountries()
+  const map: Record<string, string> = {}
+  for (const [a2, data] of Object.entries(countries)) {
+    const a3 = alpha2to3(a2)
+    if (a3) map[data.name.toLowerCase()] = a3
+  }
+  const overrides: Record<string, string> = {
+    'czech republic (czechia)': 'CZE',
+    'south korea': 'KOR',
+    'dr congo': 'COD',
+    'russia': 'RUS',
+    'turkey': 'TUR',
+    'syria': 'SYR',
+    'brunei': 'BRN',
+    'north korea': 'PRK',
+    'state of palestine': 'PSE',
+    'eswatini': 'SWZ',
+    'cabo verde': 'CPV',
+    'timor-leste': 'TLS',
+    'sao tome & principe': 'STP',
+    "st. vincent & grenadines": 'VCT',
+    'saint kitts & nevis': 'KNA',
+    'myanmar': 'MMR',
+    'congo': 'COG',
+    'iran': 'IRN',
+    'moldova': 'MDA',
+    'laos': 'LAO',
+    'macao': 'MAC',
+    'taiwan': 'TWN',
+    "côte d'ivoire": 'CIV',
+    'vietnam': 'VNM',
+    'north macedonia': 'MKD',
+    'bahamas': 'BHS',
+    'gambia': 'GMB',
+    'guinea': 'GIN',
+    'mauritius': 'MUS',
+    'seychelles': 'SYC',
+    'hong kong': 'HKG',
+    'united arab emirates': 'ARE',
+    'saudi arabia': 'SAU',
+    'netherlands': 'NLD',
+    'switzerland': 'CHE',
+    'united kingdom': 'GBR',
+    'united states': 'USA',
+  }
+  for (const [name, code] of Object.entries(overrides)) {
+    map[name] = code
+  }
+  return map
+}
+
+const WORLDOMETERS_NAME_TO_A3 = buildWorldometersNameToA3()
+
+async function fetchWorldometersGdpPage(year: number): Promise<[string, number][]> {
+  const url = `https://www.worldometers.info/gdp/gdp-by-country/?source=imf&region=worldwide&year=${year}&metric=nominal`
+  const res = await fetch(url)
+  if (!res.ok) throw new Error(`Worldometers ${res.status}: ${res.statusText}`)
+  const html = await res.text()
+
+  const entries: [string, number][] = []
+  const seen = new Set<string>()
+
+  const tableRe = /<table[^>]*>([\s\S]*?)<\/table>/g
+  const tableMatch = tableRe.exec(html)
+  if (!tableMatch) return entries
+
+  const trRe = /<tr[^>]*>([\s\S]*?)<\/tr>/g
+  let trMatch: RegExpExecArray | null
+  while ((trMatch = trRe.exec(tableMatch[1])) !== null) {
+    const trBody = trMatch[1]
+    if (!trBody.includes('$')) continue
+    const tdRe = /<td[^>]*>([\s\S]*?)<\/td>/g
+    const tds: string[] = []
+    let tdMatch: RegExpExecArray | null
+    while ((tdMatch = tdRe.exec(trBody)) !== null) {
+      tds.push(tdMatch[1].trim())
+    }
+    if (tds.length < 4) continue
+    const rankStr = tds[0].replace(/[^0-9]/g, '')
+    if (!rankStr) continue
+    const countryName = tds[1].replace(/<[^>]*>/g, '').trim()
+    const gdpTd = tds[3]
+    const gdpMatch = gdpTd.match(/\$([0-9,]+)/)
+    if (!gdpMatch) continue
+    const gdp = parseFloat(gdpMatch[1].replace(/,/g, ''))
+    const a3 = WORLDOMETERS_NAME_TO_A3[countryName.toLowerCase()]
+    if (a3 && !isNaN(gdp) && gdp > 0 && !seen.has(a3)) {
+      seen.add(a3)
+      entries.push([a3, gdp])
+    }
+  }
+
+  return entries
+}
+
 export async function fetchGdpRankings(): Promise<Record<string, number>> {
   const cached = cacheGet<Record<string, number>>(gdpRankCache)
   if (cached && cached.fresh) return cached.value
 
-  const url = 'https://api.worldbank.org/v2/country/all/indicator/NY.GDP.MKTP.CD?format=json&per_page=500&date=2024'
-  const data = await fetchJson<[unknown, { countryiso3code: string; value: number | null }[]]>(url)
-  const entries = data[1]
-
-  const gdpValues: [string, number][] = []
-  for (const entry of entries) {
-    if (entry.value !== null && KNOWN_COUNTRY_A3.has(entry.countryiso3code)) {
-      gdpValues.push([entry.countryiso3code, entry.value])
+  const thisYear = new Date().getFullYear()
+  let entries: [string, number][] = []
+  for (let year = thisYear; year >= thisYear - 3; year--) {
+    try {
+      entries = await fetchWorldometersGdpPage(year)
+      if (entries.length > 20) break
+    } catch {
+      continue
     }
   }
 
-  gdpValues.sort((a, b) => b[1] - a[1])
+  if (entries.length === 0) throw new Error('Failed to fetch GDP rankings from Worldometers')
+
+  entries.sort((a, b) => b[1] - a[1])
   const rankings: Record<string, number> = {}
-  gdpValues.forEach(([code], i) => { rankings[code] = i + 1 })
+  entries.forEach(([code], i) => { rankings[code] = i + 1 })
 
   cacheSet(gdpRankCache, rankings, CACHE_TTL)
   return rankings

@@ -4,7 +4,7 @@
 
 ### Added
 - IMF PCPI (inflation) column in dashboard, color-coded by tier (<3% green, <6% yellow, >=6% red)
-- GDP ranking column in dashboard (NGDPD-based, color-coded by rank top 10/30/60)
+- GDP ranking column in dashboard (Worldometers/IMF-based, color-coded by rank top 10/30/60)
 - `countries-and-timezones` integration: `ww tz` CLI subcommand (country, tz, info, list)
 - MCP tool `lookup_timezone` with 6 actions (country-tz, tz-countries, get-tz, get-country, all-tz, all-countries)
 - Inflation/GDP legend in dashboard footer showing color tiers
