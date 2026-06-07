@@ -37,6 +37,7 @@
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
     "ascii-table3": "^1.0.3",
+    "countries-and-timezones": "^3.9.0",
     "dotenv": "^16.4.7",
     "geoip-lite": "^2.0.2",
     "js-yaml": "^4.1.0",

@@ -11,6 +11,7 @@ import getData from './get_data.js'
 import getDataRegions from './get_regions.js'
 import getCountry from './get_country.js'
 import getEverything from './get_everything.js'
+import timezone from './timezone.js'
 
 export function registerAllTools(server: McpServer, instance: Wristworks): void {
   getTimes(server, instance)
@@ -24,4 +25,5 @@ export function registerAllTools(server: McpServer, instance: Wristworks): void 
   getData(server)
   getDataRegions(server)
   getCountry(server)
+  timezone(server)
 }

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { Wristworks, multiConvert, lookupIpWithLocation, probeHttp, dnsDig, fetchRegions, fetchCountries, fetchIndicatorsMeta, fetchIndicator, fetchImfSnapshot, getCountriesByRegion, alpha2to3 } from '../core/index.js'
+import { Wristworks, multiConvert, lookupIpWithLocation, probeHttp, dnsDig, fetchRegions, fetchCountries, fetchIndicatorsMeta, fetchIndicator, fetchImfSnapshot, getCountriesByRegion, alpha2to3, getTimezonesForCountry, getCountriesForTimezone, getTimezone, getCountry, getAllTimezones, getAllCountries } from '../core/index.js'
 import type { MultiConvertRequest, WristworksConfig, ImfRegion, ImfCountry, ImfIndicatorMeta, ImfIndicatorValue } from '../core/types.js'
 import { formatCurrencyRate } from '../core/constants.js'
 import { cacheGet } from '../core/cache.js'
@@ -209,6 +209,8 @@ function renderDashboard(
   }
   footer += '  |  Next sync: ' + nextSync + '  |  \u2317 ' + epochSec + '  |  ' + epochStr
   console.log(DIM + footer + RESET)
+  const legend = GREEN + '<3% Low' + RESET + DIM + '  |  ' + RESET + YELLOW + '3-6% Moderate' + RESET + DIM + '  |  ' + RESET + RED + '>6% High' + RESET + DIM + '  |  GDP: ' + RESET + GREEN + 'Top10' + RESET + DIM + '  |  ' + RESET + CYAN + 'Top30' + RESET + DIM + '  |  ' + RESET + YELLOW + 'Top60' + RESET
+  console.log(DIM + 'Infl: ' + legend + RESET)
   lines++
   return lines
 }
@@ -708,6 +710,87 @@ async function cmdImf(args: string[]): Promise<void> {
   console.log('    ww imf indicators US --periods 2020-2026')
 }
 
+function cmdTimezone(args: string[]): void {
+  const jsonMode = args.includes('--json') || args.includes('-j')
+  const nonFlag = args.filter(a => !a.startsWith('-'))
+
+  const sub = nonFlag[0]
+  const rest = nonFlag.slice(1)
+
+  if (sub === 'country') {
+    const code = rest[0]?.toUpperCase()
+    if (!code) { console.error('Usage: ww tz country <ISO-alpha2>'); process.exit(1) }
+    const tzs = getTimezonesForCountry(code)
+    if (!tzs) { console.error('Unknown country:', code); process.exit(1) }
+    if (jsonMode) { console.log(JSON.stringify(tzs, null, 2)); return }
+    const table = new AsciiTable3()
+      .setStyle('ascii-clean')
+      .setHeading('Timezone', 'UTC Offset', 'DST Offset')
+    for (const tz of tzs) {
+      table.addRow(tz.name, tz.utcOffsetStr, tz.dstOffsetStr)
+    }
+    console.log(table.toString())
+    return
+  }
+
+  if (sub === 'tz') {
+    const name = rest[0]
+    if (!name) { console.error('Usage: ww tz tz <IANA-name>'); process.exit(1) }
+    const countries = getCountriesForTimezone(name)
+    if (jsonMode) { console.log(JSON.stringify(countries, null, 2)); return }
+    const table = new AsciiTable3()
+      .setStyle('ascii-clean')
+      .setHeading('Country', 'Code')
+    for (const c of countries) {
+      table.addRow(c.name, c.id)
+    }
+    console.log(table.toString())
+    return
+  }
+
+  if (sub === 'info') {
+    const name = rest[0]
+    if (!name) { console.error('Usage: ww tz info <IANA-name>'); process.exit(1) }
+    const tz = getTimezone(name)
+    if (!tz) { console.error('Unknown timezone:', name); process.exit(1) }
+    if (jsonMode) { console.log(JSON.stringify(tz, null, 2)); return }
+    console.log(BOLD + tz.name + RESET)
+    console.log('  UTC Offset:  ' + tz.utcOffsetStr)
+    console.log('  DST Offset:  ' + tz.dstOffsetStr)
+    if (tz.aliasOf) console.log('  Alias of:    ' + tz.aliasOf)
+    console.log('  Countries:   ' + tz.countries.join(', '))
+    return
+  }
+
+  if (sub === 'list') {
+    if (jsonMode) {
+      console.log(JSON.stringify(getAllTimezones(), null, 2))
+      return
+    }
+    const all = getAllTimezones()
+    const rows = Object.values(all).map(tz => [tz.name, tz.utcOffsetStr, tz.countries.join(',')])
+    const table = new AsciiTable3()
+      .setStyle('ascii-clean')
+      .setHeading('Timezone', 'Offset', 'Countries')
+    for (const row of rows) {
+      table.addRow(row[0], row[1], row[2])
+    }
+    console.log(table.toString())
+    return
+  }
+
+  console.log(BOLD + 'ww tz' + RESET + '  \u2014  ' + DIM + 'Timezone & country lookup via IANA database' + RESET)
+  console.log()
+  console.log(DIM + '  Subcommands:' + RESET)
+  console.log('    ' + BOLD + 'country' + RESET + '    List timezones for a country (e.g. ww tz country US)')
+  console.log('    ' + BOLD + 'tz' + RESET + '        List countries using a timezone (e.g. ww tz tz Asia/Jakarta)')
+  console.log('    ' + BOLD + 'info' + RESET + '      Show timezone details (e.g. ww tz info Europe/London)')
+  console.log('    ' + BOLD + 'list' + RESET + '      List all timezones')
+  console.log()
+  console.log(DIM + '  Options:' + RESET)
+  console.log('    --json    JSON output')
+}
+
 async function main() {
   const args = process.argv.slice(2)
 
@@ -758,6 +841,10 @@ async function main() {
     return cmdImf(subArgs)
   }
 
+  if (subcommand === 'tz') {
+    return cmdTimezone(subArgs)
+  }
+
   if (subcommand === 'mcp') {
     const { createMcpServer } = await import('../mcp/index.js')
     const { StdioServerTransport } = await import('@modelcontextprotocol/sdk/server/stdio.js')
@@ -769,7 +856,7 @@ async function main() {
 
   const configPath = configFlag
     || args.find(
-      a => !a.startsWith('-') && a !== '--watch' && a !== '-w' && a !== '--json' && a !== '-j' && a !== '--debug' && a !== '-d' && a !== 'server-catch' && a !== 'server-fetch' && !a.startsWith('--region') && a !== '-r' && !a.startsWith('--config'),
+      a => !a.startsWith('-') && a !== '--watch' && a !== '-w' && a !== '--json' && a !== '-j' && a !== '--debug' && a !== '-d' && a !== 'server-catch' && a !== 'server-fetch' && a !== 'tz' && !a.startsWith('--region') && a !== '-r' && !a.startsWith('--config'),
     ) || './wristworks.yaml'
 
   const jsonMode = args.includes('--json') || args.includes('-j')

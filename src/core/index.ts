@@ -8,6 +8,10 @@ export { fetchTimes } from './fetcher.js'
 export { fetchRates, convertCurrency, multiConvert, unifiedCurrency, enrichLocations, clearCurrencyCache } from './currency.js'
 export { cacheGet, cacheSet, cacheClear } from './cache.js'
 export { fetchRegions, fetchCountries, fetchIndicatorsMeta, fetchIndicator, fetchImfSnapshot, enrichLocationsWithImf, fetchGdpRankings, alpha2to3, countryToRegion, getCountriesByRegion, parsePeriods } from './imf.js'
+export { getTimezonesForCountry, getCountriesForTimezone, getCountry, getTimezone, getAllTimezones, getAllCountries } from './timezone-data.js'
+export type {
+  Country, Timezone, CountryCode, TimezoneName,
+} from './timezone-data.js'
 export type {
   WristworksConfig, Target, NtpConfig,
   TimeResult, Coordinates, CurrencyInfo,

@@ -178,6 +178,27 @@ export async function fetchIndicator(
   return result
 }
 
+const KNOWN_COUNTRY_A3 = new Set(Object.values(A2_TO_A3))
+
+const WB_INDICATOR_MAP: Record<string, string> = {
+  PCPI: 'FP.CPI.TOTL.ZG',
+  NGDP_RPCH: 'NY.GDP.MKTP.KD.ZG',
+  LUR: 'SL.UEM.TOTL.ZS',
+  GGXWDG_NGDP: 'GC.DOD.TOTL.GD.ZS',
+}
+
+async function fetchWorldBankIndicatorAll(wbCode: string): Promise<Record<string, number>> {
+  const url = `https://api.worldbank.org/v2/country/all/indicator/${wbCode}?format=json&per_page=500&date=2024`
+  const data = await fetchJson<[unknown, { countryiso3code: string; value: number | null }[]]>(url)
+  const result: Record<string, number> = {}
+  for (const entry of data[1]) {
+    if (entry.value !== null && KNOWN_COUNTRY_A3.has(entry.countryiso3code)) {
+      result[entry.countryiso3code] = entry.value
+    }
+  }
+  return result
+}
+
 export async function enrichLocationsWithImf(
   locations: { countryCode?: string }[],
   options?: { periods?: string; indicators?: string[] },
@@ -200,18 +221,18 @@ export async function enrichLocationsWithImf(
   }
 
   const topIndicators = options?.indicators ?? ['NGDP_RPCH', 'PCPI', 'LUR', 'GGXWDG_NGDP']
-  const periods = options?.periods ?? '2024'
   for (const indicator of topIndicators) {
+    const wbCode = WB_INDICATOR_MAP[indicator]
+    if (!wbCode) continue
     try {
-      const snap = await fetchIndicator(indicator, unique, periods)
+      const values = await fetchWorldBankIndicatorAll(wbCode)
       for (const country of unique) {
-        const vals = snap.values[country]
-        if (vals && vals.length > 0) {
-          enrichmentMap[country].indicators[indicator] = vals[0].value
+        if (values[country] !== undefined) {
+          enrichmentMap[country].indicators[indicator] = values[country]
         }
       }
     } catch {
-      // indicator may not be available for all countries
+      // indicator may not be available
     }
   }
 
@@ -224,14 +245,14 @@ export async function fetchGdpRankings(): Promise<Record<string, number>> {
   const cached = cacheGet<Record<string, number>>(gdpRankCache)
   if (cached && cached.fresh) return cached.value
 
-  const data = await fetchJson<{ values?: Record<string, Record<string, Record<string, number>>> }>(`${BASE}/NGDPD/all`)
-  const countries = data.values?.NGDPD ?? {}
-  const gdpValues: [string, number][] = []
+  const url = 'https://api.worldbank.org/v2/country/all/indicator/NY.GDP.MKTP.CD?format=json&per_page=500&date=2024'
+  const data = await fetchJson<[unknown, { countryiso3code: string; value: number | null }[]]>(url)
+  const entries = data[1]
 
-  for (const [code, years] of Object.entries(countries)) {
-    const latestYear = Object.keys(years).sort().pop()
-    if (latestYear) {
-      gdpValues.push([code, years[latestYear]])
+  const gdpValues: [string, number][] = []
+  for (const entry of entries) {
+    if (entry.value !== null && KNOWN_COUNTRY_A3.has(entry.countryiso3code)) {
+      gdpValues.push([entry.countryiso3code, entry.value])
     }
   }
 
